@@ -2,15 +2,18 @@ from pathlib import Path
 import os
 import numpy as np
 from scipy.constants import c as c0
-from scipy.constants import pi
+from numpy import pi, inf
+
+um = 10**-6
+THz = 10 ** 12
 
 ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 
 if 'posix' in os.name:
-    top_dir = Path("/home/alex/Data/BraggMirror")
+    data_dir = Path(r"/home/alex/Data/IPHT")
 else:
-    top_dir = Path("E:\measurementdata\BraggMirror")
+    data_dir = Path(r"E:\measurementdata\IPHT")
     try:
-        os.scandir(top_dir)
+        os.scandir(data_dir)
     except FileNotFoundError:
-        top_dir = Path(r"C:\Users\Laptop\Desktop\BraggMirror")
+        data_dir = Path(r"C:\Users\Laptop\Desktop")
