@@ -7,9 +7,9 @@ from consts import THz, c0, pi, um, ROOT_DIR
 #print(mpl.rcParams.keys())
 
 # mpl.rcParams['lines.linestyle'] = '--'
-mpl.rcParams['lines.marker'] = 'o'
+#mpl.rcParams['lines.marker'] = 'o'
 mpl.rcParams['lines.markersize'] = 2
-mpl.rcParams['lines.linewidth'] = 1.5
+mpl.rcParams['lines.linewidth'] = 2.5
 mpl.rcParams['ytick.major.width'] = 2.5
 mpl.rcParams['xtick.major.width'] = 2.5
 mpl.rcParams['xtick.direction'] = 'in'

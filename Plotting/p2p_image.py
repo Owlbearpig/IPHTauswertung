@@ -1,9 +1,9 @@
 from imports import *
 
 
-def p2p_image(measurements):
-    x_positions = [meas.position[0] for meas in measurements]
-    y_positions = [meas.position[1] for meas in measurements]
+def p2p_image(refs, sams):
+    x_positions = [meas.position[0] for meas in sams]
+    y_positions = [meas.position[1] for meas in sams]
 
     min_x, min_y = min(x_positions), min(y_positions)
     max_x, max_y = max(x_positions), max(y_positions)
@@ -18,10 +18,16 @@ def p2p_image(measurements):
 
     grid_vals = np.zeros((rez_x, rez_y))
 
-    for measurement in measurements:
-        td_data = measurement.get_data_td()
-        val = np.abs(np.max(td_data[:, 1])-np.min(td_data[:,1]))
-        x_pos, y_pos = measurement.position
+    for i in range(len(sams)):
+        matched_ref_idx = np.argmin([np.abs(sams[i].meas_time - ref_i.meas_time) for ref_i in refs])
+        matched_ref = refs[matched_ref_idx]
+
+        x_pos, y_pos = sams[i].position
+        sam_td_data, ref_td_data = sams[i].get_data_td(), matched_ref.get_data_td()
+
+        p2p_val_sam = np.abs(np.max(sam_td_data[:, 1]) - np.min(sam_td_data[:, 1]))
+        p2p_val_ref = np.abs(np.max(ref_td_data[:, 1]) - np.min(ref_td_data[:, 1]))
+        val = p2p_val_sam / p2p_val_ref
         grid_vals[unique_x.index(x_pos), unique_y.index(y_pos)] = val
 
     fig = plt.figure()
@@ -37,9 +43,9 @@ def p2p_image(measurements):
                     extent=extent,
                     aspect=aspect)
 
-    ax.set_xlabel("horizontal position, x (mm)")
-    ax.set_ylabel("vertical position, y (mm)")
+    ax.set_xlabel("Horizontal stage pos. x (mm)")
+    ax.set_ylabel("Vertical stage pos. y (mm)")
 
     cbar = fig.colorbar(img)
-    cbar.set_label("p2p value (a.u.)", rotation=270, labelpad=20)
+    cbar.set_label("Normalized p2p", rotation=270, labelpad=20)
 

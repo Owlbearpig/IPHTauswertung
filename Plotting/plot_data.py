@@ -1,8 +1,9 @@
 from imports import *
 from functions import phase_correction, do_ifft, calc_absorption
 
+
 def plot_field(data_fd, label="", color=None, freq_range=(0, 10)):
-    freq_range = (freq_range[0] <= data_fd[:, 0]) *  (data_fd[:, 0] <= freq_range[1])
+    freq_range = (freq_range[0] <= data_fd[:, 0]) * (data_fd[:, 0] <= freq_range[1])
     freqs = data_fd[freq_range, 0]
 
     plt.figure("Wrapped phase")
@@ -12,7 +13,7 @@ def plot_field(data_fd, label="", color=None, freq_range=(0, 10)):
     plt.ylabel("Phase (rad)")
     plt.legend()
 
-    phase_unwrapped = phase_correction(data_fd)
+    phase_unwrapped = phase_correction(data_fd[freq_range, :])
     plt.figure("Unwrapped phase")
     plt.title("Unwrapped phase")
     plt.plot(freqs, phase_unwrapped, label=label, color=color)
@@ -22,9 +23,9 @@ def plot_field(data_fd, label="", color=None, freq_range=(0, 10)):
 
     plt.figure("Spectrum")
     plt.title("Spectrum")
-    plt.plot(freqs, np.abs(data_fd[freq_range, 1]), label=label, color=color)
+    plt.plot(freqs, 10 * np.log10(np.abs(data_fd[freq_range, 1])), label=label, color=color)
     plt.xlabel("Frequency (THz)")
-    plt.ylabel("Amplitude (a.u.)")
+    plt.ylabel("Amplitude (dB)")
     plt.legend()
 
     data_td = do_ifft(data_fd)
@@ -53,7 +54,7 @@ def plot_field(data_fd, label="", color=None, freq_range=(0, 10)):
 
 
 def plot_ri(n, label="", color=None, freq_range=(0, 10)):
-    freq_range = (freq_range[0] <= n[:, 0].real) *  (n[:, 0].real <= freq_range[1])
+    freq_range = (freq_range[0] <= n[:, 0].real) * (n[:, 0].real <= freq_range[1])
     freqs = n[freq_range, 0].real
 
     plt.figure("Refractive index real")
@@ -77,9 +78,9 @@ def plot_ri(n, label="", color=None, freq_range=(0, 10)):
 
 
 def plot_absorbance(sam_data_fd, ref_data_fd, label="", color=None, freq_range=(0, 10)):
-    freq_range = (freq_range[0] <= ref_data_fd[:, 0]) *  (ref_data_fd[:, 0] <= freq_range[1])
+    freq_range = (freq_range[0] <= ref_data_fd[:, 0]) * (ref_data_fd[:, 0] <= freq_range[1])
     freqs = ref_data_fd[freq_range, 0]
-    absorbance = 10*np.log10(np.abs(ref_data_fd[freq_range, 1]) / np.abs(sam_data_fd[freq_range, 1]))
+    absorbance = 10 * np.log10(np.abs(ref_data_fd[freq_range, 1]) / np.abs(sam_data_fd[freq_range, 1]))
 
     plt.figure("Absorbance")
     plt.title("Absorbance")
