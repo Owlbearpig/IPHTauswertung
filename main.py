@@ -9,7 +9,7 @@ def main():
     keywords = ["5x5mm_sqrd"]
     refs, sams = select_measurements(keywords)
 
-    #p2p_image(refs, sams)
+    p2p_image(refs, sams)
 
     sam1500 = sams[1500]
     matched_ref_idx = np.argmin([np.abs(sam1500.meas_time - ref_i.meas_time) for ref_i in refs])
@@ -24,20 +24,51 @@ def main():
     plot_field(sam1500_fd, label=sam_label, freq_range=(0, 6))
 
     plt.figure("System stability")
-    t, amp_1THz = [], []
+    t, amp_1THz, pulse_position, p2p_ref = [], [], [], []
     for i in range(1, len(refs)):
         #matched_ref_idx = np.argmin([np.abs(sams[i].meas_time - ref_i.meas_time) for ref_i in refs])
         #matched_ref = refs[matched_ref_idx].get_data_fd()
         #sam_i = sams[i].get_data_fd()
         #amp_1THz.append(np.abs(sam_i[100, 1] / matched_ref[100, 1]))
         ref_fd = refs[i].get_data_fd()
-        amp_1THz.append(np.abs(ref_fd[100, 1]))
+        ref_td = refs[i].get_data_td()
+        #amp_1THz.append(np.abs(ref_fd[64, 1]))
+        p2p_ref.append(np.abs(np.max(ref_td[:, 1]) - np.min(ref_td[:, 1])))
+        #argmax_ref = np.argmax(np.abs(ref_td[:, 1]))
+        #pulse_position.append(ref_td[argmax_ref, 0])
         t.append(refs[i].meas_time)
         #plot_field(ref_i, label=f"ref{i}")
-    plt.plot(t, amp_1THz, label="1 THz amplitude")
+    t0 = sorted(t)[0]
+    dt = [(ti-t0).total_seconds() / 60 for ti in t]
+    plt.plot(dt, p2p_ref, label="p2p reference")
+
+    t, p2p_sam = [], []
+    for i in range(1, len(sams)):
+        # matched_ref_idx = np.argmin([np.abs(sams[i].meas_time - ref_i.meas_time) for ref_i in refs])
+        # matched_ref = refs[matched_ref_idx].get_data_fd()
+        # sam_i = sams[i].get_data_fd()
+        # amp_1THz.append(np.abs(sam_i[100, 1] / matched_ref[100, 1]))
+        sam_td = sams[i].get_data_td()
+        # amp_1THz.append(np.abs(ref_fd[64, 1]))
+        p2p_sam.append(np.abs(np.max(sam_td[:, 1]) - np.min(sam_td[:, 1])))
+        # argmax_ref = np.argmax(np.abs(ref_td[:, 1]))
+        # pulse_position.append(ref_td[argmax_ref, 0])
+        t.append(sams[i].meas_time)
+        # plot_field(ref_i, label=f"ref{i}")
+    t0 = sorted(t)[0]
+    dt = [(ti - t0).total_seconds() / 60 for ti in t]
+
+    plt.plot(dt, p2p_sam, label="p2p sample")
+
+    #plt.plot(dt, amp_1THz, label="0.640 THz")
+    # plt.ylabel("|FFT(y_ref)(0.640 THz)|")
+    plt.ylabel("P2p")
+    plt.xlabel("Time (minutes)")
     plt.legend()
 
     plot_absorbance(sam1500_fd, ref_fd, freq_range=(0.25, 3), label=sam_label)
+
+
 
     plt.show()
 

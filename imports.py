@@ -2,7 +2,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy import array, linspace, inf, nan_to_num, sum, zeros
-from consts import THz, c0, pi, um, ROOT_DIR
+from consts import THz, c0, pi, um, ROOT_DIR, cur_os, Path
 
 #print(mpl.rcParams.keys())
 
@@ -15,10 +15,14 @@ mpl.rcParams['xtick.major.width'] = 2.5
 mpl.rcParams['xtick.direction'] = 'in'
 mpl.rcParams['ytick.direction'] = 'in'
 mpl.rcParams['axes.grid'] = True
+if 'posix' in cur_os:
+    result_dir = Path(r"/home/alex/MEGA/AG/Projects/THz Conductivity/IPHT/5x5mm_sqrd/results")
+else:
+    result_dir = Path(r"")
+mpl.rcParams["savefig.directory"] = result_dir
+mpl.rcParams.update({'font.size': 22})
 # plt.style.use(['dark_background'])
 # plt.xkcd()
-
-mpl.rcParams.update({'font.size': 22})
 
 post_process_config = {"sub_offset": True, "en_windowing": False}
 
