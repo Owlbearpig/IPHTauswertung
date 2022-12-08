@@ -124,7 +124,7 @@ def avg_data(measurements):
     return np.array([t, np.mean(y_arrays, axis=0)]).T
 
 
-def select_measurements(keywords, case_sensitive=True, post_process=None):
+def select_measurements(keywords, case_sensitive=True, post_process=None, match_exact=False):
     measurements = get_all_measurements(post_process=post_process)
 
     if not case_sensitive:
@@ -132,8 +132,17 @@ def select_measurements(keywords, case_sensitive=True, post_process=None):
 
     selected = []
     for measurement in measurements:
-        if all([keyword in str(measurement) for keyword in keywords]):
+        dirs = measurement.filepath.parents[0].parts
+        if match_exact:
+            for dir_ in dirs:
+                if any([keyword == dir_ for keyword in keywords]):
+                    selected.append(measurement)
+                    break
+        elif all([keyword in str(measurement) for keyword in keywords]):
             selected.append(measurement)
+
+    if len(selected) == 0:
+        exit("No files found; exiting")
 
     ref_cnt, sam_cnt = 0, 0
     for selected_measurement in selected:

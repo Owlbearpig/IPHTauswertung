@@ -1,7 +1,7 @@
 from imports import *
 
 
-def p2p_image(refs, sams):
+def p2p_image(refs, sams, point_value="rel_p2p"):
     x_positions = [meas.position[0] for meas in sams]
     y_positions = [meas.position[1] for meas in sams]
 
@@ -20,45 +20,70 @@ def p2p_image(refs, sams):
     refs = sorted(refs, key=lambda ref: ref.meas_time)
     sams = sorted(sams, key=lambda sam: sam.meas_time)
 
-    for i in range(len(sams)):
-        matched_ref_idx = np.argmin([np.abs(sams[i].meas_time - ref_i.meas_time) for ref_i in refs])
-
-        matched_ref = refs[matched_ref_idx]
-        if sams[i].meas_time < matched_ref.meas_time:
-            shift = -1
-        else:
-            shift = 1
-        if matched_ref_idx != (len(refs) - 1):
-            matched_ref_next = refs[matched_ref_idx + shift]
-        else:
-            matched_ref_next = refs[matched_ref_idx]
-        print(sams[i].meas_time)
-        print(matched_ref.meas_time, matched_ref_next.meas_time)
-
-        sam_td_data, ref_td_data = sams[i].get_data_td(), matched_ref.get_data_td()
-        ref_next_td_data = matched_ref_next.get_data_td()
-        avg_ref_td = ref_td_data.copy()
-        avg_ref_td[:, 1] = (ref_next_td_data[:, 1] + ref_td_data[:, 1]) / 2
-        p2p_val_sam = np.abs(np.max(sam_td_data[:, 1]) - np.min(sam_td_data[:, 1]))
-        #p2p_val_ref = np.abs(np.max(ref_td_data[:, 1]) - np.min(ref_td_data[:, 1]))
-        #p2p_val_ref_next = np.abs(np.max(ref_next_td_data[:, 1]) - np.min(ref_next_td_data[:, 1]))
-        p2p_avg_ref = np.abs(np.max(avg_ref_td[:, 1]) - np.min(avg_ref_td[:, 1]))
-        val = p2p_val_sam / p2p_avg_ref
-
-        #argmax_sam = np.argmax(np.abs(sam_td_data[:, 1]))
-        #argmax_ref = np.argmax(np.abs(ref_td_data[:, 1]))
-        #val = sam_td_data[argmax_sam, 0] - sam_td_data[argmax_ref, 0]
-        #val = sam_td_data[argmax_sam, 0]
-
-        x_pos, y_pos = sams[i].position
-        grid_vals[unique_x.index(x_pos), unique_y.index(y_pos)] = val
-
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    #ax.set_title("ToF (pp_sam - pp_ref) image")
-    ax.set_title("P2p image")
+    cbar_label = ""
+
+    for i in range(len(sams)):
+        matched_ref_idx = np.argmin([np.abs(sams[i].meas_time - ref_i.meas_time) for ref_i in refs])
+        matched_ref = refs[matched_ref_idx]
+
+        sam_fd, ref_fd = sams[i].get_data_fd(), matched_ref.get_data_fd()
+        sam_td_data, ref_td_data = sams[i].get_data_td(), matched_ref.get_data_td()
+
+        # relative peak to peak value
+        if "rel_p2p" in point_value:
+            ax.set_title("Relative peak to peak value")
+            cbar_label = r"p2p($y_{sam}$) / p2p($y_{ref}$)"
+
+            p2p_val_sam = np.abs(np.max(sam_td_data[:, 1]) - np.min(sam_td_data[:, 1]))
+            p2p_val_ref = np.abs(np.max(ref_td_data[:, 1]) - np.min(ref_td_data[:, 1]))
+            val = p2p_val_sam / p2p_val_ref
+        elif "integrated_intensity" in point_value:
+            ax.set_title("Integrated spectra over 1.0 THz - 1.5 THz")
+            cbar_label = "$\sum |FFT(y_{sam})| $ / $\sum |FFT(y_{ref})|$"
+
+            val = np.sum(np.abs(sam_fd[100:150])) / np.sum(np.abs(ref_fd[100:150]))
+        elif "tof" in point_value:  # time of flight
+            ax.set_title("ToF (pp_sam - pp_ref) image")
+            cbar_label = "Time of flight"
+
+            argmax_sam = np.argmax(np.abs(sam_td_data[:, 1]))
+            argmax_ref = np.argmax(np.abs(ref_td_data[:, 1]))
+            val = sam_td_data[argmax_sam, 0] - sam_td_data[argmax_ref, 0]
+        elif "pulse_position" in point_value:
+            cbar_label = ""
+
+            argmax_sam = np.argmax(np.abs(sam_td_data[:, 1]))
+            val = sam_td_data[argmax_sam, 0]
+        elif "avg_ref_p2p_value" in point_value:
+            cbar_label = ""
+
+            if sams[i].meas_time < matched_ref.meas_time:
+                shift = -1
+            else:
+                shift = 1
+            if matched_ref_idx != (len(refs) - 1):
+                matched_ref_next = refs[matched_ref_idx + shift]
+            else:
+                matched_ref_next = refs[matched_ref_idx]
+
+            ref_next_td_data = matched_ref_next.get_data_td()
+            avg_ref_td = ref_td_data.copy()
+            avg_ref_td[:, 1] = (ref_next_td_data[:, 1] + ref_td_data[:, 1]) / 2
+            p2p_val_sam = np.abs(np.max(sam_td_data[:, 1]) - np.min(sam_td_data[:, 1]))
+            p2p_avg_ref = np.abs(np.max(avg_ref_td[:, 1]) - np.min(avg_ref_td[:, 1]))
+            val = p2p_val_sam / p2p_avg_ref
+        else:
+            val = 0
+
+        x_pos, y_pos = sams[i].position
+        y_pos = abs(y_pos - 20) # rotate y around y=10
+        grid_vals[unique_x.index(x_pos), unique_y.index(y_pos)] = val
+
     fig.subplots_adjust(left=0.2)
-    extent = [grd_x[0], grd_x[-1], grd_y[0], grd_y[-1]]
+    #extent = [grd_x[0], grd_x[-1], grd_y[0], grd_y[-1]] correct
+    extent = [grd_x[0], grd_x[-1], grd_y[-1], grd_y[0]]  # flipped y axis
     aspect = ((bounds[0][1] - bounds[0][0]) / rez_x) / ((bounds[1][1] - bounds[1][0]) / rez_y)
 
     img = ax.imshow(grid_vals[:, :].transpose((1, 0)), vmin=np.min(grid_vals), vmax=np.max(grid_vals),
@@ -71,5 +96,4 @@ def p2p_image(refs, sams):
     ax.set_ylabel("Vertical stage pos. y (mm)")
 
     cbar = fig.colorbar(img)
-    cbar.set_label("p2p_sam / p2p_ref", rotation=270, labelpad=20)
-
+    cbar.set_label(cbar_label, rotation=270, labelpad=30)
