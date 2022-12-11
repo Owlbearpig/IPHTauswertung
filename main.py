@@ -9,10 +9,36 @@ import numpy as np
 def main():
     #keywords = ["5x5mm_sqrd"]  # first measurement
     keywords = ["5x5mm_sqrd_rotated180deg"]  # rotated 180 degree
+    #keywords = ["10x10mm_sqrd_1"]
+    #keywords = ["10x10mm_sqrd_2"]
+
     refs, sams = select_measurements(keywords, match_exact=True)
 
     p2p_image(refs, sams)
     plt.show()
+    """
+    matched_sam = None
+    for sam in sams:
+        if (int(sam.position[0]) == 30) and (int(sam.position[1]) == 20):
+            matched_sam = sam
+            break
+
+    matched_ref_idx = np.argmin([np.abs(matched_sam.meas_time - ref_i.meas_time) for ref_i in refs])
+    matched_ref = refs[matched_ref_idx]
+    matched_sam_fd, ref_fd = matched_sam.get_data_fd(), matched_ref.get_data_fd()
+
+    sam_label, ref_label = "sample ", "ref "
+    sam_label += f"X={round(matched_sam.position[0], 1)} mm, Y={round(matched_sam.position[1], 1)} mm"
+    ref_label += f"X={round(matched_ref.position[0], 1)} mm, Y={round(matched_ref.position[1], 1)} mm"
+
+    plot_field(ref_fd, label=ref_label, freq_range=(0, 6))
+    plot_field(matched_sam_fd, label=sam_label, freq_range=(0, 6))
+
+    plot_system_stability(refs)
+
+    plot_absorbance(matched_sam_fd, ref_fd, freq_range=(0.25, 3), label=sam_label)
+
+    """
     sam1500 = sams[1500]
     matched_ref_idx = np.argmin([np.abs(sam1500.meas_time - ref_i.meas_time) for ref_i in refs])
     matched_ref = refs[matched_ref_idx]
@@ -24,6 +50,14 @@ def main():
 
     plot_field(ref_fd, label=ref_label, freq_range=(0, 6))
     plot_field(sam1500_fd, label=sam_label, freq_range=(0, 6))
+    
+    plot_system_stability(refs)
+
+    plot_absorbance(sam1500_fd, ref_fd, freq_range=(0.25, 3), label=sam_label)
+    
+
+
+
 
     """
     plt.figure("System stability")
@@ -46,9 +80,7 @@ def main():
     plt.plot(dt, p2p_ref, label="p2p reference")
     """
 
-    plot_system_stability(refs)
 
-    plot_absorbance(sam1500_fd, ref_fd, freq_range=(0.25, 3), label=sam_label)
 
 
 if __name__ == '__main__':

@@ -78,12 +78,14 @@ def p2p_image(refs, sams, point_value="rel_p2p"):
             val = 0
 
         x_pos, y_pos = sams[i].position
-        y_pos = abs(y_pos - 20) # rotate y around y=10
+        #y_pos = abs(y_pos - 20) # rotate y around y=10
+        if x_pos > 55:
+            val = 0.785
         grid_vals[unique_x.index(x_pos), unique_y.index(y_pos)] = val
 
     fig.subplots_adjust(left=0.2)
-    #extent = [grd_x[0], grd_x[-1], grd_y[0], grd_y[-1]] correct
-    extent = [grd_x[0], grd_x[-1], grd_y[-1], grd_y[0]]  # flipped y axis
+    extent = [grd_x[0], grd_x[-1], grd_y[0], grd_y[-1]] # correct
+    #extent = [grd_x[0], grd_x[-1], grd_y[-1], grd_y[0]]  # flipped y axis
     aspect = ((bounds[0][1] - bounds[0][0]) / rez_x) / ((bounds[1][1] - bounds[1][0]) / rez_y)
 
     img = ax.imshow(grid_vals[:, :].transpose((1, 0)), vmin=np.min(grid_vals), vmax=np.max(grid_vals),

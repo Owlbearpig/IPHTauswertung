@@ -15,6 +15,8 @@ mpl.rcParams['xtick.major.width'] = 2.5
 mpl.rcParams['xtick.direction'] = 'in'
 mpl.rcParams['ytick.direction'] = 'in'
 mpl.rcParams['axes.grid'] = True
+mpl.rcParams['figure.autolayout'] = True
+mpl.rcParams['savefig.format'] = 'pdf'
 if 'posix' in cur_os:
     result_dir = Path(r"/home/alex/MEGA/AG/Projects/THz Conductivity/IPHT/5x5mm_sqrd/results")
 else:

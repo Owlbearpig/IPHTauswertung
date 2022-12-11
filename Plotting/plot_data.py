@@ -3,6 +3,7 @@ from functions import phase_correction, do_ifft, calc_absorption
 
 
 def plot_field(data_fd, label="", color=None, freq_range=(0, 10)):
+    # TODO use measurement instead of fd array
     freq_range = (freq_range[0] <= data_fd[:, 0]) * (data_fd[:, 0] <= freq_range[1])
     freqs = data_fd[freq_range, 0]
 
