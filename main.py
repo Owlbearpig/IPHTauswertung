@@ -8,14 +8,16 @@ import numpy as np
 
 def main():
     #keywords = ["5x5mm_sqrd"]  # first measurement
-    keywords = ["5x5mm_sqrd_rotated180deg"]  # rotated 180 degree
+    #keywords = ["5x5mm_sqrd_rotated180deg"]  # rotated 180 degree
     #keywords = ["10x10mm_sqrd_1"]
     #keywords = ["10x10mm_sqrd_2"]
+    keywords = ["10x10mm_sqrd_3"]
 
     refs, sams = select_measurements(keywords, match_exact=True)
 
-    p2p_image(refs, sams)
+    p2p_image(refs, sams, point_value="integrated_intensity")
     plt.show()
+
     """
     matched_sam = None
     for sam in sams:

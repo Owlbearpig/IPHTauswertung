@@ -30,7 +30,7 @@ def p2p_image(refs, sams, point_value="rel_p2p"):
 
         sam_fd, ref_fd = sams[i].get_data_fd(), matched_ref.get_data_fd()
         sam_td_data, ref_td_data = sams[i].get_data_td(), matched_ref.get_data_td()
-
+        edge_val = 0.785
         # relative peak to peak value
         if "rel_p2p" in point_value:
             ax.set_title("Relative peak to peak value")
@@ -40,14 +40,15 @@ def p2p_image(refs, sams, point_value="rel_p2p"):
             p2p_val_ref = np.abs(np.max(ref_td_data[:, 1]) - np.min(ref_td_data[:, 1]))
             val = p2p_val_sam / p2p_val_ref
         elif "integrated_intensity" in point_value:
-            ax.set_title("Integrated spectra over 1.0 THz - 1.5 THz")
+            ax.set_title("Integrated spectra over 0.5 THz - 1.0 THz")
             cbar_label = "$\sum |FFT(y_{sam})| $ / $\sum |FFT(y_{ref})|$"
+            edge_val = 0.80
 
-            val = np.sum(np.abs(sam_fd[100:150])) / np.sum(np.abs(ref_fd[100:150]))
+            val = np.sum(np.abs(sam_fd[50:100])) / np.sum(np.abs(ref_fd[50:100]))
         elif "tof" in point_value:  # time of flight
             ax.set_title("ToF (pp_sam - pp_ref) image")
-            cbar_label = "Time of flight"
-
+            cbar_label = "$\Delta$t (ps)"
+            edge_val = 0
             argmax_sam = np.argmax(np.abs(sam_td_data[:, 1]))
             argmax_ref = np.argmax(np.abs(ref_td_data[:, 1]))
             val = sam_td_data[argmax_sam, 0] - sam_td_data[argmax_ref, 0]
@@ -80,7 +81,7 @@ def p2p_image(refs, sams, point_value="rel_p2p"):
         x_pos, y_pos = sams[i].position
         #y_pos = abs(y_pos - 20) # rotate y around y=10
         if x_pos > 55:
-            val = 0.785
+            val = edge_val
         grid_vals[unique_x.index(x_pos), unique_y.index(y_pos)] = val
 
     fig.subplots_adjust(left=0.2)
