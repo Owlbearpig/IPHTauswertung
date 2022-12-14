@@ -7,17 +7,29 @@ import numpy as np
 
 
 def main():
-    #keywords = ["5x5mm_sqrd"]  # first measurement
-    #keywords = ["5x5mm_sqrd_rotated180deg"]  # rotated 180 degree
-    #keywords = ["10x10mm_sqrd_1"]
-    #keywords = ["10x10mm_sqrd_2"]
-    keywords = ["10x10mm_sqrd_3"]
+    #keywords = ["5x5cm_sqrd"]  # first measurement
+    keywords = ["5x5cm_sqrd_rotated180deg"]  # rotated 180 degree
+    title = "Sample 0"
+    sam_idx = 3
+
+    if sam_idx == 1:
+        keywords = ["10x10cm_sqrd_1"]
+        title = "Sample 1"
+    elif sam_idx == 2:
+        keywords = ["10x10cm_sqrd_2"]
+        title = "Sample 2"
+    elif sam_idx == 3:
+        keywords = ["10x10cm_sqrd_3"]
+        title = "Sample 3"
 
     refs, sams = select_measurements(keywords, match_exact=True)
 
-    p2p_image(refs, sams, point_value="integrated_intensity")
-    plt.show()
+    options = {"point_value": "integrated_intensity", "normalize": True, "title": title, "freq_range": (1.0, 2.0)}
 
+    p2p_image(refs, sams, options=options)
+
+    plt.show()
+    exit()
     """
     matched_sam = None
     for sam in sams:
