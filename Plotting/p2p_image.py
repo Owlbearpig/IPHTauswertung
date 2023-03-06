@@ -1,7 +1,13 @@
+import matplotlib.pyplot as plt
+
 from imports import *
 
 
-def p2p_image(refs, sams, point_value="rel_p2p"):
+def p2p_image(refs, sams, options):
+    normalize = options["normalize"]
+    point_value = options["point_value"]
+    title = options["title"]
+
     x_positions = [meas.position[0] for meas in sams]
     y_positions = [meas.position[1] for meas in sams]
 
@@ -21,6 +27,7 @@ def p2p_image(refs, sams, point_value="rel_p2p"):
     sams = sorted(sams, key=lambda sam: sam.meas_time)
 
     fig = plt.figure()
+
     ax = fig.add_subplot(111)
     cbar_label = ""
 
@@ -30,7 +37,7 @@ def p2p_image(refs, sams, point_value="rel_p2p"):
 
         sam_fd, ref_fd = sams[i].get_data_fd(), matched_ref.get_data_fd()
         sam_td_data, ref_td_data = sams[i].get_data_td(), matched_ref.get_data_td()
-        edge_val = 0.785
+        edge_val = 0.82
         # relative peak to peak value
         if "rel_p2p" in point_value:
             ax.set_title("Relative peak to peak value")
@@ -40,11 +47,13 @@ def p2p_image(refs, sams, point_value="rel_p2p"):
             p2p_val_ref = np.abs(np.max(ref_td_data[:, 1]) - np.min(ref_td_data[:, 1]))
             val = p2p_val_sam / p2p_val_ref
         elif "integrated_intensity" in point_value:
-            ax.set_title("Integrated spectra over 0.5 THz - 1.0 THz")
+            fmin, fmax = options["freq_range"]
+            ax.set_title(f"Integrated spectra over {fmin} THz - {fmax} THz ")
             cbar_label = "$\sum |FFT(y_{sam})| $ / $\sum |FFT(y_{ref})|$"
-            edge_val = 0.80
+            edge_val = 0.82
 
-            val = np.sum(np.abs(sam_fd[50:100])) / np.sum(np.abs(ref_fd[50:100]))
+            val = np.sum(np.abs(sam_fd[int(fmin*100):int(fmax*100)])) / \
+                  np.sum(np.abs(ref_fd[int(fmin*100):int(fmax*100)]))
         elif "tof" in point_value:  # time of flight
             ax.set_title("ToF (pp_sam - pp_ref) image")
             cbar_label = "$\Delta$t (ps)"
@@ -80,9 +89,19 @@ def p2p_image(refs, sams, point_value="rel_p2p"):
 
         x_pos, y_pos = sams[i].position
         #y_pos = abs(y_pos - 20) # rotate y around y=10
+
+        # set edge value and find min, max vals
         if x_pos > 55:
+            if normalize:
+                edge_val = 0.5
             val = edge_val
+
         grid_vals[unique_x.index(x_pos), unique_y.index(y_pos)] = val
+
+    min_val, max_val = np.min(grid_vals[0:66, :]), np.max(grid_vals[0:66, :])
+    if normalize:
+        grid_vals[0:66, :] -= min_val
+        grid_vals[0:66, :] /= (max_val - min_val)
 
     fig.subplots_adjust(left=0.2)
     extent = [grd_x[0], grd_x[-1], grd_y[0], grd_y[-1]] # correct
@@ -97,6 +116,8 @@ def p2p_image(refs, sams, point_value="rel_p2p"):
 
     ax.set_xlabel("Horizontal stage pos. x (mm)")
     ax.set_ylabel("Vertical stage pos. y (mm)")
-
+    ax_title = ax.get_title()
+    ax.set_title(title + "\n" + ax_title)
+    fig.canvas.manager.set_window_title(title + " " + ax_title)
     cbar = fig.colorbar(img)
     cbar.set_label(cbar_label, rotation=270, labelpad=30)

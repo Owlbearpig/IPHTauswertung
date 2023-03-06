@@ -18,9 +18,9 @@ mpl.rcParams['axes.grid'] = True
 mpl.rcParams['figure.autolayout'] = True
 mpl.rcParams['savefig.format'] = 'pdf'
 if 'posix' in cur_os:
-    result_dir = Path(r"/home/alex/MEGA/AG/Projects/THz Conductivity/IPHT/5x5mm_sqrd/results")
+    result_dir = Path(r"/home/alex/MEGA/AG/Projects/THz Conductivity/IPHT/10x10_squares/Results")
 else:
-    result_dir = Path(r"E:\Mega\AG\Projects\THz Conductivity\IPHT\5x5mm_sqrd\results")
+    result_dir = Path(r"E:\Mega\AG\Projects\THz Conductivity\IPHT\10x10_squares\Results")
 mpl.rcParams["savefig.directory"] = result_dir
 mpl.rcParams.update({'font.size': 22})
 # plt.style.use(['dark_background'])
