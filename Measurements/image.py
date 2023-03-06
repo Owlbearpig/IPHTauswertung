@@ -131,8 +131,26 @@ class Image:
         else:
             return y_td, do_fft(y_td)
 
-    def get_ref(self, both=False, normalize=False, sub_offset=False):
-        ref_td = self.refs[-1].get_data_td()
+    def get_ref(self, both=False, normalize=False, sub_offset=False, coords=None):
+        if coords is not None:
+            closest_sam, best_fit_val = None, np.inf
+            for sam_meas in self.sams:
+                val = abs(sam_meas.position[0] - coords[0]) + \
+                      abs(sam_meas.position[1] - coords[1])
+                if val < best_fit_val:
+                    best_fit_val = val
+                    closest_sam = sam_meas
+
+            closest_ref, best_fit_val = None, np.inf
+            for ref_meas in self.refs:
+                val = np.abs((closest_sam.meas_time - ref_meas.meas_time).total_seconds())
+                if val < best_fit_val:
+                    best_fit_val = val
+                    closest_ref = ref_meas
+
+            ref_td = closest_ref.get_data_td()
+        else:
+            ref_td = self.refs[-1].get_data_td()
 
         if sub_offset:
             ref_td[:, 1] -= np.mean(ref_td[:, 1])
@@ -184,17 +202,18 @@ class Image:
 if __name__ == '__main__':
     sample_names = ["5x5cm_sqrd", "10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqrd_s3"]
 
-    dir_s1_uncoated = data_dir / "Uncoated" / sample_names[1]
-    dir_s1_coated = data_dir / "Coated" / sample_names[1]
+    dir_s1_uncoated = data_dir / "Uncoated" / sample_names[3]
+    dir_s1_coated = data_dir / "Coated" / sample_names[3]
 
     measurements = get_all_measurements(data_dir_=dir_s1_uncoated)
     image = Image(measurements)
-    image.plot_image(img_extent=[0, 40, 0, 20])
+    image.plot_image(img_extent=[-10, 50, -3, 25])
     image.plot_point(x=19, y=9)
 
     measurements = get_all_measurements(data_dir_=dir_s1_coated)
     image = Image(measurements)
-    image.plot_image(img_extent=[0, 40, 0, 20])
+    #image.plot_image(img_extent=[0, 40, 0, 20])
+    image.plot_image(img_extent=None)
     image.plot_point(x=19, y=9)
 
     plt.show()

@@ -4,7 +4,10 @@ import numpy as np
 from scipy.constants import c as c0
 from numpy import pi, inf
 
+
 cur_os = os.name
+
+c_thz = c0 * 10 ** -9
 
 um = 10**-6
 THz = 10 ** 12
