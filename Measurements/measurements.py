@@ -68,7 +68,10 @@ class Measurement:
 
         self.pre_process_done = True
 
-    def get_data_td(self):
+    def get_data_td(self, get_raw=False):
+        if get_raw:
+            return np.loadtxt(self.filepath)
+
         if self._data_td is None:
             self._data_td = np.loadtxt(self.filepath)
 
@@ -98,10 +101,14 @@ class Measurement:
         return self._data_fd
 
 
-def get_all_measurements(post_process=None):
+def get_all_measurements(post_process=None, data_dir_=None):
     measurements = []
 
-    glob = data_dir.glob("**/*")
+    if data_dir_ is not None:
+        glob = data_dir_.glob("**/*")
+    else:
+        glob = data_dir.glob("**/*")
+
     for file_path in glob:
         if file_path.is_file():
             try:
