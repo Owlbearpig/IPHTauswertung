@@ -166,6 +166,84 @@ def main(en_plot=True):
         plt.figure("Time domain")
         plt.plot(sam_tmm_simple_td[:, 0], sam_tmm_simple_td[:, 1], label="Simple TMM")
 
+    def thin_film_model(n_sub, n_film, f_idx):
+        omega_i = omega[f_idx]
+        t01, t12, t23 = 2 / (1 + n_sub), 2 * n_sub / (n_sub + n_film), 2 * n_film / (n_sub + n_film)
+        p1 = np.exp(-1j * omega_i * n_sub * d_sub / c_thz)
+        r10, r12, r23 = (n_sub - 1) / (n_sub + 1), (n_sub - n_film) / (n_sub + n_film), (n_film - 1) / (n_film + 1)
+
+        enum = t01 * t12 * t23 * p1
+        denum = (1 - p1 ** 2 * r12 * r10) * (1 + r23 * r12)
+
+        return enum / denum
+
+    def simple_model_fit():
+        n_line = np.linspace(0, 1200, 1000)
+
+        def cost(p, f_idx):
+            n_film = p[1] + 1j * p[1]
+            t_func = thin_film_model(n_sub[f_idx], n_film, f_idx) # * phase_shift[f_idx]
+            t_func_exp = s1_film_fd[:, 1] / s1_film_ref_fd[:, 1]
+
+            amp_loss = (np.abs(t_func) - np.abs(t_func_exp[f_idx])) ** 2
+            phi_loss = (np.angle(t_func) - np.angle(t_func_exp[f_idx])) ** 2
+
+            return amp_loss + phi_loss
+
+        n_opt = np.zeros(len(freqs), dtype=complex)
+        for f_idx, freq in enumerate(freqs):
+            print(f"Frequency: {freq} (THz), (idx: {f_idx})")
+            if freq > 2.0:
+                n_opt[f_idx] = n_opt[f_idx - 1]
+                continue
+            else:
+                best_n, min_val = None, np.inf
+                vals = []
+                for n in n_line:
+                    val = cost([n, n], f_idx)
+                    vals.append(val)
+                    if val < min_val:
+                        best_n = n
+                        min_val = val
+
+                n_opt[f_idx] = best_n + 1j * best_n
+                print(n_opt[f_idx], "\n")
+
+        return n_opt
+
+    n_opt_tmm = n_opt
+
+
+    """
+    n_opt = simple_model_fit()
+
+    n_simple = array([one, n_sub, n_opt, one], dtype=complex).T
+    """
+    t_func = np.zeros_like(freqs, dtype=complex)
+    for f_idx, freq in enumerate(freqs):
+        t_func[f_idx] = thin_film_model(n_sub[f_idx], n_opt_tmm[f_idx], f_idx)
+
+    sam_thin_film_fd = t_func * s1_film_ref_fd[:, 1] # * phase_shift
+    sam_thin_film_fd = array([freqs, sam_thin_film_fd]).T
+
+    sam_tmm_simple_td = do_fft(sam_thin_film_fd)
+
+    if en_plot:
+        plt.figure("RI")
+        plt.plot(freqs, n_opt.real, label="Simple model")
+
+        plt.figure("Extinction coefficient")
+        plt.plot(freqs, n_opt.imag, label="Simple model")
+
+        plt.figure("Spectrum")
+        plt.plot(sam_thin_film_fd[1:, 0], 20 * np.log10(np.abs(sam_thin_film_fd[1:, 1])), label="Simple model")
+
+        plt.figure("Phase")
+        plt.plot(sam_thin_film_fd[1:, 0], np.angle(sam_thin_film_fd[1:, 1]), label="Simple model")
+
+        plt.figure("Time domain")
+        plt.plot(sam_tmm_simple_td[:, 0], sam_tmm_simple_td[:, 1], label="Simple model")
+
 
 if __name__ == '__main__':
     main()
