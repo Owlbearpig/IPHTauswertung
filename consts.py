@@ -4,6 +4,12 @@ import numpy as np
 from scipy.constants import c as c0
 from numpy import pi, inf
 
+sample_names = ["5x5cm_sqrd", "10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqrd_s3"]
+
+d_sub = 0.070  # mm
+angle_in = 0 * pi / 180
+
+eval_point = (19, 9)
 
 cur_os = os.name
 

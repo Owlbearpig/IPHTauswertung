@@ -2,7 +2,7 @@ import re
 from consts import *
 import numpy as np
 import matplotlib.pyplot as plt
-from functions import do_fft
+from functions import do_fft, phase_correction
 from measurements import Measurement, get_all_measurements
 
 
@@ -110,7 +110,7 @@ class Image:
         cbar = fig.colorbar(img)
         cbar.set_label(f"{plot_type_}", rotation=270, labelpad=10)
 
-    def get_point(self, x, y, normalize=False, sub_offset=False, both=False):
+    def get_point(self, x, y, normalize=False, sub_offset=False, both=False, add_plot=False):
         dx, dy, dt = self.image_info["dx"], self.image_info["dy"], self.image_info["dt"]
         h = self.image_info["h"]
 
@@ -125,6 +125,9 @@ class Image:
             y_ *= 1 / np.max(y_)
 
         y_td = np.array([np.linspace(0, dt * len(y_), len(y_)), y_]).T
+
+        if add_plot:
+            self.plot_point(x, y, y_td)
 
         if not both:
             return y_td
@@ -166,18 +169,19 @@ class Image:
         else:
             return ref_td
 
-    def plot_point(self, x, y):
-        y_td = self.get_point(x, y, sub_offset=True)
+    def plot_point(self, x, y, y_td=None, sub_noise_floor=False, label=""):
+        if y_td is None:
+            y_td = self.get_point(x, y, sub_offset=True)
 
         # y_td = filtering(y_td, wn=(2.000, 3.000), filt_type="bandpass", order=5)
         y_fd = do_fft(y_td)
-        ref_td, ref_fd = self.get_ref(both=True, sub_offset=True)
+        ref_td, ref_fd = self.get_ref(both=True, sub_offset=True, coords=(x, y))
 
-        noise_floor = np.mean(20 * np.log10(np.abs(ref_fd[ref_fd[:, 0] > 6.0, 1])))
+        noise_floor = np.mean(20 * np.log10(np.abs(ref_fd[ref_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
 
         if not self.plotted_ref:
             plt.figure("Spectrum")
-            plt.plot(ref_fd[:, 0], 20 * np.log10(np.abs(ref_fd[:, 1])) - noise_floor, label="Reference")
+            plt.plot(ref_fd[1:, 0], 20 * np.log10(np.abs(ref_fd[1:, 1])) - noise_floor, label="Reference")
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Amplitude (dB)")
 
@@ -188,15 +192,18 @@ class Image:
 
             self.plotted_ref = True
 
-        noise_floor = np.mean(20 * np.log10(np.abs(y_fd[y_fd[:, 0] > 6.0, 1])))
+        label += f" x={x} (mm), y={y} (mm)"
+
+        noise_floor = np.mean(20 * np.log10(np.abs(y_fd[y_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
 
         plt.figure("Spectrum")
-        plt.plot(y_fd[:, 0], 20*np.log10(np.abs(y_fd[:, 1])) - noise_floor, label=f"x={x} (mm), y={y} (mm)")
-        plt.legend()
+        plt.plot(y_fd[1:, 0], 20*np.log10(np.abs(y_fd[1:, 1])) - noise_floor, label=label)
+
+        plt.figure("Phase")
+        plt.plot(y_fd[1:, 0], np.angle(y_fd[1:, 1]), label=label)
 
         plt.figure("Time domain")
-        plt.plot(y_td[:, 0], y_td[:, 1], label=f"x={x} (mm), y={y} (mm)")
-        plt.legend()
+        plt.plot(y_td[:, 0], y_td[:, 1], label=label)
 
 
 if __name__ == '__main__':
@@ -215,5 +222,9 @@ if __name__ == '__main__':
     #image.plot_image(img_extent=[0, 40, 0, 20])
     image.plot_image(img_extent=None)
     image.plot_point(x=19, y=9)
+
+    for fig_label in plt.get_figlabels():
+        plt.figure(fig_label)
+        plt.legend()
 
     plt.show()
