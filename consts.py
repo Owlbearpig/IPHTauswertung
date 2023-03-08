@@ -3,7 +3,7 @@ import os
 import numpy as np
 from scipy.constants import c as c0
 from scipy.constants import epsilon_0
-from numpy import pi, inf
+from numpy import pi, inf, array
 
 sample_names = ["5x5cm_sqrd", "10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqrd_s3"]
 

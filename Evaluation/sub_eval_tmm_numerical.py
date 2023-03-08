@@ -11,8 +11,12 @@ from sub_eval import analytical_eval
 from mpl_settings import *
 
 
-def tmm_eval(en_plot=False):
-    dir_s1_sub = data_dir / "Uncoated" / sample_names[1]
+def tmm_eval(en_plot=False, data_dir_=None):
+
+    if data_dir_ is None:
+        dir_s1_sub = data_dir / "Uncoated" / sample_names[1]
+    else:
+        dir_s1_sub = data_dir_
 
     measurements = get_all_measurements(data_dir_=dir_s1_sub)
     image = Image(measurements)
