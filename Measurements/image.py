@@ -150,7 +150,7 @@ class Image:
                 if val < best_fit_val:
                     best_fit_val = val
                     closest_ref = ref_meas
-
+            print(f"Time between ref and sample: {(closest_sam.meas_time - closest_ref.meas_time).total_seconds()}")
             ref_td = closest_ref.get_data_td()
         else:
             ref_td = self.refs[-1].get_data_td()
@@ -169,7 +169,7 @@ class Image:
         else:
             return ref_td
 
-    def plot_point(self, x, y, y_td=None, sub_noise_floor=False, label=""):
+    def plot_point(self, x, y, y_td=None, sub_noise_floor=False, label="", td_scale=1):
         if y_td is None:
             y_td = self.get_point(x, y, sub_offset=True)
 
@@ -200,17 +200,16 @@ class Image:
         plt.plot(y_fd[1:, 0], 20*np.log10(np.abs(y_fd[1:, 1])) - noise_floor, label=label)
 
         plt.figure("Phase")
-        plt.plot(y_fd[1:, 0], np.angle(y_fd[1:, 1]), label=label)
+        plt.plot(y_fd[1:, 0], phase_correction(y_fd[1:, ]), label=label)
 
         plt.figure("Time domain")
-        plt.plot(y_td[:, 0], y_td[:, 1], label=label)
+        plt.plot(y_td[:, 0], td_scale * y_td[:, 1], label=label)
 
 
 if __name__ == '__main__':
-    sample_names = ["5x5cm_sqrd", "10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqrd_s3"]
 
-    dir_s1_uncoated = data_dir / "Uncoated" / sample_names[3]
-    dir_s1_coated = data_dir / "Coated" / sample_names[3]
+    dir_s1_uncoated = data_dir / "Uncoated" / sample_names[1]
+    dir_s1_coated = data_dir / "Coated" / sample_names[1]
 
     measurements = get_all_measurements(data_dir_=dir_s1_uncoated)
     image = Image(measurements)

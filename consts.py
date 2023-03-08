@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import numpy as np
 from scipy.constants import c as c0
+from scipy.constants import epsilon_0
 from numpy import pi, inf
 
 sample_names = ["5x5cm_sqrd", "10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqrd_s3"]
@@ -9,7 +10,7 @@ sample_names = ["5x5cm_sqrd", "10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqr
 d_sub = 0.070  # mm
 angle_in = 0 * pi / 180
 
-eval_point = (19, 9)
+eval_point = (10, 10)#(20, 9)
 
 cur_os = os.name
 

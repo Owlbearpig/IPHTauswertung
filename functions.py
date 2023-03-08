@@ -67,13 +67,13 @@ def unwrap(data_fd):
     return phase_unwrapped
 
 
-def phase_correction(data_fd, fit_range=None, verbose=verbose):
+def phase_correction(data_fd, fit_range=None, verbose=verbose, ret_interpol=False):
     freqs = data_fd[:, 0].real
 
     phase_unwrapped = unwrap(data_fd)
 
     if fit_range is None:
-        fit_range = [0.75, 1.25]
+        fit_range = [0.40, 0.75]
 
     fit_slice = (freqs >= fit_range[0]) * (freqs <= fit_range[1])
     p = np.polyfit(freqs[fit_slice], phase_unwrapped[fit_slice], 1)
@@ -88,6 +88,9 @@ def phase_correction(data_fd, fit_range=None, verbose=verbose):
         plt.xlabel("Frequency (THz)")
         plt.ylabel("Phase (rad)")
         plt.legend()
+
+    if ret_interpol:
+        return p[0].real * freqs
 
     return phase_corrected
 

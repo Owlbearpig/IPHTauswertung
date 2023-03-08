@@ -69,7 +69,7 @@ def tmm_eval(en_plot=False):
 
         return amp_loss + phi_loss
 
-    n_opt = np.zeros(len(freqs))
+    n_opt = np.zeros(len(freqs), dtype=complex)
     for f_idx, freq in enumerate(freqs):
         print(f"Frequency: {freq} (THz), (idx: {f_idx})")
         res = shgo(cost, bounds=bounds, args=(f_idx,), iters=6)
