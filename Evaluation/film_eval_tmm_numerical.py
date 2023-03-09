@@ -14,11 +14,11 @@ from mpl_settings import *
 def main(en_plot=True):
     d_film = 0.000200
     plot_td_scale = 50
+    eval_point = (21.0, 2.0)
 
     dir_s1_film = data_dir / "Coated" / sample_names[1]
 
-    measurements = get_all_measurements(data_dir_=dir_s1_film)
-    image = Image(measurements)
+    image = Image(dir_s1_film)
     s1_film_td = image.get_point(x=eval_point[0], y=eval_point[1], sub_offset=True, add_plot=False)
 
     #s1_film_td = filtering(s1_film_td, filt_type="hp", wn=0.25, order=5)
@@ -37,10 +37,13 @@ def main(en_plot=True):
 
     #plt.show()
 
+    dir_s1_film = data_dir / "Uncoated" / sample_names[1]
+    image_sub = Image(dir_s1_film)
+
     try:
         n_sub = np.load("n_sub.npy")
     except FileNotFoundError:
-        n_sub = tmm_eval()
+        n_sub = tmm_eval(image_sub, meas_point=(20, 9))
         np.save("n_sub.npy", n_sub)
 
     freqs = s1_film_ref_fd[:, 0].real
@@ -112,7 +115,7 @@ def main(en_plot=True):
 
     def simple_fit():
         n_line = np.linspace(100, 250, 1000)
-        bounds = [(0, 3000), (0, 3000)]
+        bounds = [(0, 800), (0, 800)]
         phi_corrected = phase_correction(s1_film_fd, ret_interpol=True, fit_range=[0.35, 1.65])
 
         phi_corrected = np.angle(np.exp(1j*phi_corrected))
@@ -208,7 +211,6 @@ def main(en_plot=True):
         def cost(p, f_idx):
             n_film = p[0] + 1j * p[1]
             t_func = thin_film_model(n_sub[f_idx], n_film, f_idx)  # * phase_shift[f_idx]
-            t_func *= (s1_film_ref_fd[f_idx, 1] * 0.8)
             # t_func_exp = s1_film_fd[:, 1] / s1_film_ref_fd[:, 1]
 
             amp_loss = (np.abs(t_func) - np.abs(s1_film_fd[f_idx, 1])) ** 2
@@ -237,14 +239,15 @@ def main(en_plot=True):
 
         return n_opt
 
-    # n_opt_tmm = n_opt
-
+    """
+    n_opt_tmm = n_opt
+    
     n_opt = thin_film_model_fit()
 
     n_simple = array([one, n_sub, n_opt, one], dtype=complex).T
 
     sam_thin_film_td, sam_thin_film_fd = calc_model(n_simple)
-    """
+    
     t_func = np.zeros_like(freqs, dtype=complex)
     for f_idx, freq in enumerate(freqs):
         t_func[f_idx] = thin_film_model(n_sub[f_idx], n_opt_tmm[f_idx], f_idx)
@@ -253,7 +256,7 @@ def main(en_plot=True):
     sam_thin_film_fd = array([freqs, sam_thin_film_fd]).T
 
     sam_thin_film_td = do_fft(sam_thin_film_fd)
-    """
+    
 
     if en_plot:
         plt.figure("RI")
@@ -270,7 +273,7 @@ def main(en_plot=True):
 
         plt.figure("Time domain")
         plt.plot(sam_thin_film_td[:, 0], plot_td_scale*sam_thin_film_td[:, 1], label="Thin film model")
-
+    """
 
 if __name__ == '__main__':
     main()

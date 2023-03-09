@@ -1,6 +1,4 @@
 from consts import *
-from Measurements.image import Image
-from Measurements.measurements import get_all_measurements
 import matplotlib.pyplot as plt
 from functions import phase_correction
 
@@ -35,6 +33,9 @@ def analytical_eval(sam_fd, ref_fd):
 
 
 if __name__ == '__main__':
+    from Measurements.image import Image
+    from Measurements.measurements import get_all_measurements
+
     sample_names = ["5x5cm_sqrd", "10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqrd_s3"]
 
     dir_s1_uncoated = data_dir / "Uncoated" / sample_names[3]
