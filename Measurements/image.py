@@ -6,11 +6,11 @@ from functions import do_fft, phase_correction
 from measurements import get_all_measurements
 from tmm import coh_tmm
 from scipy.optimize import shgo
-from sub_eval_tmm_numerical import tmm_eval
 
 
 class Image:
     plotted_ref = False
+    noise_floor = None
     time_axis = None
     cache_path = None
     name = ""
@@ -177,11 +177,11 @@ class Image:
                     val = self._eval_conductivity(measurement, **kwargs)
                     grid_vals[x_idx, y_idx] = val
                     print(f"Result: {int(val) * 10**-6} (MS/m)\n")
+
+                np.save(str(grid_vals_cache_name), grid_vals)
         else:
             # grid_vals = np.argmax(np.abs(self.image_data[:, :, int(17 / info["dt"]):int(20 / info["dt"])]), axis=2)
             grid_vals = np.argmax(np.abs(self.image_data[:, :, int(17 / info["dt"]):int(20 / info["dt"])]), axis=2)
-
-            np.save(str(grid_vals_cache_name), grid_vals)
 
         grid_vals = grid_vals[w0:w1, h0:h1]
 
@@ -271,7 +271,7 @@ class Image:
 
         if not self.plotted_ref:
             plt.figure("Spectrum")
-            plt.plot(ref_fd[1:, 0], 20 * np.log10(np.abs(ref_fd[1:, 1])) - noise_floor, label="Reference")
+            plt.plot(ref_fd[plot_range1, 0], 20 * np.log10(np.abs(ref_fd[plot_range1, 1])) - noise_floor, label="Reference")
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Amplitude (dB)")
 
@@ -282,18 +282,18 @@ class Image:
 
             self.plotted_ref = True
 
-        label += f" x={x} (mm), y={y} (mm)"
+        label += f" (x={x} (mm), y={y} (mm))"
 
         noise_floor = np.mean(20 * np.log10(np.abs(y_fd[y_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
-
+        print(noise_floor)
         plt.figure("Spectrum")
-        plt.plot(y_fd[1:, 0], 20 * np.log10(np.abs(y_fd[1:, 1])) - noise_floor, label=label)
+        plt.plot(y_fd[plot_range1, 0], 20 * np.log10(np.abs(y_fd[plot_range1, 1])) - noise_floor, label=label)
 
         plt.figure("Phase")
-        plt.plot(y_fd[1:, 0], phase_correction(y_fd[1:, ]), label=label)
+        plt.plot(y_fd[plot_range, 0], phase_correction(y_fd[plot_range, ]), label=label)
 
         plt.figure("Time domain")
-        plt.plot(y_td[:, 0], td_scale * y_td[:, 1], label=label)
+        plt.plot(y_td[:, 0], td_scale * y_td[:, 1], label=label + f" (Amplitude x {td_scale})")
 
 
 if __name__ == '__main__':
@@ -305,7 +305,7 @@ if __name__ == '__main__':
     meas_dir = data_dir / "Coated" / sample_names[sample_idx]
     film_image = Image(data_path=meas_dir, sub_image=sub_image)
 
-    film_image.plot_image(img_extent=[-10, 50, -2, 26], plot_type_="Conductivity", selected_freq=0.800)
+    film_image.plot_image(img_extent=[-10, 50, -2, 26], plot_type_="Conductivity", selected_freq=0.850)
 
     for fig_label in plt.get_figlabels():
         if "Sample" in fig_label:

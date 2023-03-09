@@ -10,6 +10,8 @@ sample_names = ["10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqrd_s3", "5x5cm_
 d_sub = 0.070  # mm
 angle_in = 0 * pi / 180
 
+plot_range = slice(25, 200)
+plot_range1 = slice(1, 500)
 #eval_point = (10, 10)#(20, 9)
 
 cur_os = os.name

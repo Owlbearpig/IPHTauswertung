@@ -15,15 +15,17 @@ def main(en_plot=True):
     d_film = 0.000200
     plot_td_scale = 50
     eval_point = (21.0, 2.0)
+    sample_idx = 0
+    plt_title = f"Sample {sample_idx+1} (200 nm Ag)"
 
-    dir_s1_film = data_dir / "Coated" / sample_names[1]
+    dir_s1_film = data_dir / "Coated" / sample_names[sample_idx]
 
     image = Image(dir_s1_film)
     s1_film_td = image.get_point(x=eval_point[0], y=eval_point[1], sub_offset=True, add_plot=False)
 
     #s1_film_td = filtering(s1_film_td, filt_type="hp", wn=0.25, order=5)
     #s1_film_td = filtering(s1_film_td, filt_type="lp", wn=1.75, order=5)
-    image.plot_point(x=eval_point[0], y=eval_point[1], y_td=s1_film_td, label="Film", td_scale=plot_td_scale)
+    image.plot_point(x=eval_point[0], y=eval_point[1], y_td=s1_film_td, label=f"Sample", td_scale=plot_td_scale, sub_noise_floor=True)
 
     s1_film_fd = do_fft(s1_film_td)
 
@@ -31,13 +33,13 @@ def main(en_plot=True):
 
     #s1_film_ref_td = filtering(s1_film_ref_td, filt_type="hp", wn=0.25, order=5)
     #s1_film_ref_td = filtering(s1_film_ref_td, filt_type="lp", wn=1.75, order=5)
-    image.plot_point(x=eval_point[0], y=eval_point[1], y_td=s1_film_ref_td, label="Ref.")
+    #image.plot_point(x=eval_point[0], y=eval_point[1], y_td=s1_film_ref_td, label="Reference")
 
     s1_film_ref_fd = do_fft(s1_film_ref_td)
 
     #plt.show()
 
-    dir_s1_film = data_dir / "Uncoated" / sample_names[1]
+    dir_s1_film = data_dir / "Uncoated" / sample_names[sample_idx]
     image_sub = Image(dir_s1_film)
 
     try:
@@ -166,8 +168,8 @@ def main(en_plot=True):
     sigma = 1j * (1 - epsilon) * epsilon_0 * omega * THz
 
     plt.figure("Conductivity")
-    plt.plot(freqs, sigma.real, label="Sigma real part")
-    plt.plot(freqs, sigma.imag, label="Sigma imag part")
+    plt.plot(freqs[plot_range], sigma[plot_range].real, label="Sigma real part")
+    plt.plot(freqs[plot_range], sigma[plot_range].imag, label="Sigma imag part")
     plt.xlabel("Frequency (THz)")
     plt.ylabel("Conductivity (S/m)")
 
@@ -177,19 +179,32 @@ def main(en_plot=True):
 
     if en_plot:
         plt.figure("RI")
-        plt.plot(freqs, n_opt.real, label="Simple")
+        plt.title(plt_title)
+        plt.plot(freqs[plot_range], n_opt[plot_range].real, label="Fit (TMM)")
+        plt.xlabel("Frequency (THz)")
+        plt.ylabel("Refractive index")
 
         plt.figure("Extinction coefficient")
-        plt.plot(freqs, n_opt.imag, label="Simple")
+        plt.title(plt_title)
+        plt.plot(freqs[plot_range], n_opt[plot_range].imag, label="Fit (TMM)")
+        plt.xlabel("Frequency (THz)")
+        plt.ylabel("Extinction coefficient")
+
+        noise_floor = -38.47382396704249# np.mean(20 * np.log10(np.abs(sam_tmm_simple_fd[900:, 1])))
 
         plt.figure("Spectrum")
-        plt.plot(sam_tmm_simple_fd[1:, 0], 20 * np.log10(np.abs(sam_tmm_simple_fd[1:, 1])), label="Simple TMM")
+        plt.title(plt_title)
+        plt.plot(sam_tmm_simple_fd[plot_range1, 0],
+                 20 * np.log10(np.abs(sam_tmm_simple_fd[plot_range1, 1])) - noise_floor, label="Model (TMM)")
 
         plt.figure("Phase")
-        plt.plot(sam_tmm_simple_fd[1:, 0], phase_correction(sam_tmm_simple_fd[1:, ]), label="Simple TMM")
+        plt.title(plt_title)
+        plt.plot(sam_tmm_simple_fd[plot_range, 0],
+                 phase_correction(sam_tmm_simple_fd[plot_range, ]), label="Model (TMM)")
 
         plt.figure("Time domain")
-        plt.plot(sam_tmm_simple_td[:, 0], plot_td_scale*sam_tmm_simple_td[:, 1], label="Simple TMM")
+        plt.title(plt_title)
+        plt.plot(sam_tmm_simple_td[:, 0], plot_td_scale*sam_tmm_simple_td[:, 1], label="Model (TMM)")
 
     def thin_film_model(n_sub, n_film, f_idx):
         omega_i = omega[f_idx]
