@@ -1,3 +1,4 @@
+import random
 import re
 from consts import *
 import numpy as np
@@ -6,6 +7,7 @@ from functions import do_fft, phase_correction
 from measurements import get_all_measurements
 from tmm import coh_tmm
 from scipy.optimize import shgo
+from sub_eval_tmm_numerical import tmm_eval
 
 
 class Image:
@@ -117,8 +119,10 @@ class Image:
             n_sub = tmm_eval(self.sub_image, measurement.position, single_f_idx=f_idx)
             np.save(sub_img_cache_path, n_sub)
         """
-        n_sub = np.load(ROOT_DIR / "Evaluation" / "n_sub.npy")
-        n_sub = n_sub[f_idx]
+        #n_sub = np.load(ROOT_DIR / "Evaluation" / "n_sub.npy")
+        # n_sub = n_sub[f_idx]
+        n_sub = tmm_eval(self.sub_image, measurement.position, single_f_idx=f_idx)
+        print(f"Substrate refractive index: {np.round(n_sub, 3)}")
 
         phase_shift = np.exp(-1j * (d_sub + d_film) * omega / c_thz)
 
@@ -159,7 +163,7 @@ class Image:
             h0, h1 = int((img_extent[2] - info["extent"][2]) / dy), int((img_extent[3] - info["extent"][2]) / dy)
 
         freq_sel = kwargs["selected_freq"]
-        grid_vals_cache_name = self.cache_path / f"{plot_type_}_{freq_sel}.npy"
+        grid_vals_cache_name = self.cache_path / f"{plot_type_}_{freq_sel}_1to1sub_ri.npy"
         if plot_type_ == "p2p":
             grid_vals = np.max(self.image_data, axis=2) - np.min(self.image_data, axis=2)
         elif plot_type_ == "Conductivity":
@@ -200,7 +204,7 @@ class Image:
         ax.set_ylabel("y (mm)")
 
         cbar = fig.colorbar(img)
-        cbar.set_label(f"{plot_type_}" + label, rotation=270, labelpad=20)
+        cbar.set_label(f"{plot_type_}" + label, rotation=270, labelpad=30)
 
     def get_point(self, x, y, normalize=False, sub_offset=False, both=False, add_plot=False):
         dx, dy, dt = self.image_info["dx"], self.image_info["dy"], self.image_info["dt"]
@@ -283,9 +287,8 @@ class Image:
             self.plotted_ref = True
 
         label += f" (x={x} (mm), y={y} (mm))"
-
         noise_floor = np.mean(20 * np.log10(np.abs(y_fd[y_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
-        print(noise_floor)
+
         plt.figure("Spectrum")
         plt.plot(y_fd[plot_range1, 0], 20 * np.log10(np.abs(y_fd[plot_range1, 1])) - noise_floor, label=label)
 
@@ -305,7 +308,7 @@ if __name__ == '__main__':
     meas_dir = data_dir / "Coated" / sample_names[sample_idx]
     film_image = Image(data_path=meas_dir, sub_image=sub_image)
 
-    film_image.plot_image(img_extent=[-10, 50, -2, 26], plot_type_="Conductivity", selected_freq=0.850)
+    film_image.plot_image(img_extent=[-10, 50, -3, 27], plot_type_="Conductivity", selected_freq=0.800)
 
     for fig_label in plt.get_figlabels():
         if "Sample" in fig_label:

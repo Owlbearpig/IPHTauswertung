@@ -195,6 +195,17 @@ def chill():
     pass
 
 
+def to_db(data_fd):
+    if data_fd.ndim == 2:
+        return 20 * np.log10(np.abs(data_fd[:, 1]))
+    else:
+        return 20 * np.log10(np.abs(data_fd))
+
+
+def get_noise_floor(data_fd, noise_start=6.0):
+    return np.mean(20 * np.log10(np.abs(data_fd[data_fd[:, 0] > noise_start, 1])))
+
+
 def zero_pad_fd(data0_fd, data1_fd):
     # expected data1_fd range: 0, 10 THz.
     df = np.mean(np.diff(data1_fd[:, 0].real))

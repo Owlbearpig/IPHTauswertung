@@ -69,7 +69,7 @@ def tmm_eval(sub_image, meas_point, en_plot=False, analytical=False, single_f_id
             freq = freqs[single_f_idx]
             print(f"Frequency: {freq} (THz), (idx: {single_f_idx})")
             res = shgo(cost, bounds=bounds, args=(single_f_idx,), iters=7)
-            print(res.x, res.fun, "\n")
+            print(res.x, res.fun)
 
             return res.x[0] + 1j * res.x[1]
         else:
