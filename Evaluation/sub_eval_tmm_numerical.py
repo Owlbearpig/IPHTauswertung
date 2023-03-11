@@ -51,35 +51,38 @@ def tmm_eval(sub_image, meas_point, en_plot=False, analytical=False, single_f_id
             plt.figure("Time domain")
             plt.plot(sam_tmm_td[:, 0], sam_tmm_td[:, 1], label="Analytical TMM")
     else:
-        # numerical optimization
-        bounds = array([(1.6, 2.1), (0.06, 0.40)])
+        try:
+            n_sub = np.load("n_sub_s{sam}.npy")
+        except FileNotFoundError:
+            # numerical optimization
+            bounds = array([(1.6, 2.1), (0.01, 0.40)])
 
-        def cost(p, f_idx):
-            n = array([1, p[0] + 1j * p[1], 1])
-            lam_vac = c_thz / freqs[f_idx]
-            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)["t"]
-            sam_tmm_fd = t_tmm_fd * s1_sub_ref_fd[f_idx, 1] * phase_shift[f_idx]
+            def cost(p, f_idx):
+                n = array([1, p[0] + 1j * p[1], 1])
+                lam_vac = c_thz / freqs[f_idx]
+                t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)["t"]
+                sam_tmm_fd = t_tmm_fd * s1_sub_ref_fd[f_idx, 1] * phase_shift[f_idx]
 
-            amp_loss = (np.abs(sam_tmm_fd) - np.abs(s1_sub_fd[f_idx, 1])) ** 2
-            phi_loss = (np.angle(sam_tmm_fd) - np.angle(s1_sub_fd[f_idx, 1])) ** 2
+                amp_loss = (np.abs(sam_tmm_fd) - np.abs(s1_sub_fd[f_idx, 1])) ** 2
+                phi_loss = (np.angle(sam_tmm_fd) - np.angle(s1_sub_fd[f_idx, 1])) ** 2
 
-            return amp_loss + phi_loss
+                return amp_loss + phi_loss
 
-        if single_f_idx is not None:
-            freq = freqs[single_f_idx]
-            print(f"Frequency: {freq} (THz), (idx: {single_f_idx})")
-            res = shgo(cost, bounds=bounds, args=(single_f_idx,), iters=7)
-            print(res.x, res.fun)
+            if single_f_idx is not None:
+                freq = freqs[single_f_idx]
+                print(f"Frequency: {freq} (THz), (idx: {single_f_idx})")
+                res = shgo(cost, bounds=bounds, args=(single_f_idx,), iters=7)
+                print(res.x, res.fun)
 
-            return res.x[0] + 1j * res.x[1]
-        else:
-            n_sub = np.zeros(len(freqs), dtype=complex)
-            for f_idx, freq in enumerate(freqs):
-                print(f"Frequency: {freq} (THz), (idx: {f_idx})")
-                res = shgo(cost, bounds=bounds, args=(f_idx,), iters=7)
-                print(res.x, res.fun, "\n")
+                return res.x[0] + 1j * res.x[1]
+            else:
+                n_sub = np.zeros(len(freqs), dtype=complex)
+                for f_idx, freq in enumerate(freqs):
+                    print(f"Frequency: {freq} (THz), (idx: {f_idx})")
+                    res = shgo(cost, bounds=bounds, args=(f_idx,), iters=7)
+                    print(res.x, res.fun, "\n")
 
-                n_sub[f_idx] = res.x[0] + 1j * res.x[1]
+                    n_sub[f_idx] = res.x[0] + 1j * res.x[1]
 
         n_shgo = array([one, n_sub, one]).T
 
@@ -107,9 +110,11 @@ def tmm_eval(sub_image, meas_point, en_plot=False, analytical=False, single_f_id
 if __name__ == '__main__':
     from Measurements.image import Image
 
-    image_data = data_dir / "Uncoated" / sample_names[1]
+    image_data = data_dir / "Uncoated" / sample_names[0]
     image = Image(image_data)
-    n_res = tmm_eval(sub_image=image, meas_point=(36, 10))
+    image.plot_point(20, 9)
+    n_sub = tmm_eval(sub_image=image, meas_point=(20, 9), en_plot=True)
+    np.save("n_sub.npy", n_sub)
 
     for fig_label in plt.get_figlabels():
         plt.figure(fig_label)
