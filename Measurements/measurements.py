@@ -3,7 +3,7 @@ import numpy as np
 from datetime import datetime
 from consts import data_dir
 from numpy.fft import fft, fftfreq
-from functions import windowing
+from functions import window
 from Plotting.plot_data import plot_field
 
 

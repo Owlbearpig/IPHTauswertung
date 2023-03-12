@@ -317,6 +317,12 @@ class Image:
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Amplitude (dB)")
 
+            plt.figure("Phase")
+            phase_correction = lambda x: np.angle(x[:, 1])
+            plt.plot(ref_fd[plot_range, 0], phase_correction(ref_fd[plot_range,]), label="Reference")
+            plt.xlabel("Frequency (THz)")
+            plt.ylabel("Phase (rad)")
+
             plt.figure("Time domain")
             plt.plot(ref_td[:, 0], ref_td[:, 1], label="Reference")
             plt.xlabel("Time (ps)")

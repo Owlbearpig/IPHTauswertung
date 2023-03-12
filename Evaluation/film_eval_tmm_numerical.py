@@ -6,15 +6,15 @@ from Measurements.measurements import get_all_measurements
 from Measurements.image import Image
 import matplotlib.pyplot as plt
 from tmm import coh_tmm
-from functions import do_ifft, filtering, do_fft, phase_correction, to_db, get_noise_floor
+from functions import do_ifft, filtering, do_fft, phase_correction, to_db, get_noise_floor, window
 from sub_eval_tmm_numerical import tmm_eval
 from mpl_settings import *
 
 
 def drude_fit(sigma_exp, omega, sample_idx):
     f0, f1 = 0.3, 1.2
-    freqs = omega / (2*pi)
-    freq_slice = (f0 < freqs)*(freqs < f1)
+    freqs = omega / (2 * pi)
+    freq_slice = (f0 < freqs) * (freqs < f1)
 
     freqs = freqs[freq_slice]
     omega = omega[freq_slice]
@@ -27,7 +27,7 @@ def drude_fit(sigma_exp, omega, sample_idx):
         dc, tau = p
         sigma_model = drude_model(dc, tau, omega)
 
-        loss = np.sum((sigma_model.real - sigma_exp.real)**2 + (sigma_model.imag - sigma_exp.imag)**2)
+        loss = np.sum((sigma_model.real - sigma_exp.real) ** 2 + (sigma_model.imag - sigma_exp.imag) ** 2)
 
         loss = np.sum((sigma_model.real - sigma_exp.real) ** 2)
         # loss = np.sum((sigma_model.imag - sigma_exp.imag) ** 2)
@@ -53,6 +53,7 @@ def drude_fit(sigma_exp, omega, sample_idx):
 
     return dc, tau
 
+
 # -2, 16
 def main(en_plot=True, sample_idx=0, eval_point=None):
     d_film = sample_thicknesses[sample_idx]
@@ -70,19 +71,21 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
     # s1_film_td = filtering(s1_film_td, filt_type="hp", wn=0.25, order=5)
     # s1_film_td = filtering(s1_film_td, filt_type="lp", wn=1.75, order=5)
-    image.plot_point(x=eval_point[0], y=eval_point[1], y_td=film_td, label=f"Sample {sample_idx+1}", td_scale=plot_td_scale,
+    image.plot_point(x=eval_point[0], y=eval_point[1], y_td=film_td, label=f"Sample {sample_idx + 1}",
+                     td_scale=plot_td_scale,
                      sub_noise_floor=True)
 
-    film_fd = do_fft(film_td)
-
     film_ref_td = image.get_ref(both=False, coords=eval_point)
+
+    # film_ref_td = window(film_ref_td, win_len=30, shift=5, en_plot=True)
+    # film_td = window(film_td, win_len=30, shift=5, en_plot=True)
 
     # s1_film_ref_td = filtering(s1_film_ref_td, filt_type="hp", wn=0.25, order=5)
     # s1_film_ref_td = filtering(s1_film_ref_td, filt_type="lp", wn=1.75, order=5)
     # image.plot_point(x=eval_point[0], y=eval_point[1], y_td=s1_film_ref_td, label="Reference")
 
     film_ref_fd = do_fft(film_ref_td)
-
+    film_fd = do_fft(film_td)
     # plt.show()
 
     data_dir_film = data_dir / "Uncoated" / sample_names[sample_idx]
@@ -166,9 +169,10 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
     def simple_fit():
         n_line = np.linspace(100, 250, 1000)
         bounds = shgo_bounds[sample_idx]
-        #phi_corrected = phase_correction(s1_film_fd, ret_interpol=True, fit_range=[0.35, 1.65])
 
-        #phi_corrected = np.angle(np.exp(1j * phi_corrected))
+        # phi_corrected = phase_correction(film_fd, ret_interpol=True, fit_range=[0.6, 1.45])
+
+        # phi_corrected = np.angle(np.exp(1j * phi_corrected))
 
         def cost(p, f_idx):
             n = array([1, n_sub[f_idx], p[0] + 1j * p[1], 1])
@@ -208,10 +212,10 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
     x, y = eval_point
     try:
-        n_opt = np.load(f"n_opt_simple_fit_s{sample_idx+1}_{x}_{y}.npy")
+        n_opt = np.load(f"n_opt_simple_fit_s{sample_idx + 1}_{x}_{y}.npy")
     except FileNotFoundError:
         n_opt = simple_fit()
-        np.save(f"n_opt_simple_fit_s{sample_idx+1}_{x}_{y}.npy", n_opt)
+        np.save(f"n_opt_simple_fit_s{sample_idx + 1}_{x}_{y}.npy", n_opt)
 
     epsilon = n_opt ** 2
     sigma = 1j * (1 - epsilon) * epsilon_0 * omega * THz
@@ -254,12 +258,12 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
         plt.figure("Phase")
         plt.title(plt_title)
         plt.plot(sam_tmm_simple_fd[plot_range, 0],
-                 phase_correction(sam_tmm_simple_fd[plot_range, ]), label="Model (TMM)", linewidth=1.5)
+                 phase_correction(sam_tmm_simple_fd[plot_range,]), label="Model (TMM)", linewidth=1.5)
 
         plt.figure("Time domain")
         plt.title(plt_title)
         plt.plot(sam_tmm_simple_td[:, 0], plot_td_scale * sam_tmm_simple_td[:, 1],
-                    label=f"Model (TMM amplitude x{plot_td_scale})", color="Green", zorder=2, linewidth=2)
+                 label=f"Model (TMM amplitude x{plot_td_scale})", color="Green", zorder=2, linewidth=2)
 
     def thin_film_model(n_sub, n_film, f_idx):
         omega_i = omega[f_idx]
@@ -347,7 +351,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
 
 if __name__ == '__main__':
-    main(sample_idx=2, eval_point=(-2, 16))
+    main(sample_idx=0, eval_point=(30, 10))
 
     for fig_label in plt.get_figlabels():
         plt.figure(fig_label)

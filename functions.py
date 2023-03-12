@@ -94,35 +94,50 @@ def phase_correction(data_fd, fit_range=None, verbose=verbose, ret_interpol=Fals
 
     return phase_corrected
 
+def window(data_td, win_len=None, win_start=None, shift=None, en_plot=False):
+    t, y = data_td[:, 0], data_td[:, 1]
+    pulse_width = 10  # ps
+    dt = np.mean(np.diff(t))
 
-def windowing(data_td):
-    # ~14 ps pulse width
-    dt = np.mean(np.diff(data_td[:, 0]))
-    window_width = int(14 / dt)
+    if win_len is None:
+        win_len = int(pulse_width / dt)
+    else:
+        win_len = int(win_len / dt)
 
-    peak_pos = np.argmax(np.abs(data_td[:, 1]))
-    window = signal.get_window("tukey", window_width)
+    if win_len > len(y):
+        win_len = len(y)
 
-    t_len = data_td.shape[0]
-    window_start_idx = peak_pos - window_width // 2
-    window = np.concatenate((np.zeros(window_start_idx),
-                             window,
-                             np.zeros(t_len - window_start_idx - len(window))))
+    if win_start is None:
+        win_center = np.argmax(np.abs(y))
+        win_start = win_center - int(win_len / 2)
+    else:
+        win_start = int(win_start / dt)
 
-    data_td_windowed = data_td.copy()
-    data_td_windowed[:, 1] *= window
-    # data_td_windowed[900:, 1] = data_td_windowed[900:, 1] * 0
+    if win_start < 0:
+        win_start = 0
 
-    if verbose:
-        plt.figure()
-        plt.plot(data_td[:, 0], data_td[:, 1], label="Data w/o window")
-        plt.plot(data_td_windowed[:, 0], data_td_windowed[:, 1], label="Data with window")
-        plt.plot(data_td[:, 0], window * max(data_td[:, 1]), label="window * max(y)")
+    pre_pad = np.zeros(win_start)
+    window_arr = signal.windows.tukey(win_len, 0.50)
+    post_pad = np.zeros(len(y) - win_len - win_start)
+
+    window_arr = np.concatenate((pre_pad, window_arr, post_pad))
+
+    if shift is not None:
+        window_arr = np.roll(window_arr, int(shift / dt))
+
+    y_win = y * window_arr
+
+    if en_plot:
+        plt.figure("Windowing")
+        plt.plot(t, y, label="Sam. before windowing")
+        plt.plot(t, np.max(np.abs(y)) * window_arr, label="Window")
+        plt.plot(t, y_win, label="Sam. after windowing")
         plt.xlabel("Time (ps)")
-        plt.ylabel("Amplitude (a.u.)")
+        plt.ylabel("Amplitude (nA)")
         plt.legend()
+        plt.show()
 
-    return data_td_windowed
+    return np.array([t, y_win]).T
 
 
 def calc_absorption(freqs, k):
