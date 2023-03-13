@@ -3,6 +3,7 @@ import re
 from consts import *
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 from functions import do_fft, phase_correction
 from measurements import get_all_measurements
 from tmm import coh_tmm
@@ -44,6 +45,10 @@ class Image:
         return refs, sams
 
     def _set_info(self):
+        parts = self.sams[0].filepath.parts
+        self.sample_idx = sample_names.index(parts[-2])
+        self.name = f"Sample {self.sample_idx + 1} {parts[-3]}"
+
         sample_data_td = self.sams[0].get_data_td()
         samples = int(sample_data_td.shape[0])
         self.time_axis = sample_data_td[:, 0].real
@@ -58,18 +63,14 @@ class Image:
             x_coords.append(sam_measurement.position[0])
             y_coords.append(sam_measurement.position[1])
 
-        x_coords, y_coords = sorted(set(x_coords)), sorted(set(y_coords))
+        x_coords, y_coords = array(sorted(set(x_coords))), array(sorted(set(y_coords)))
 
         w, h = len(x_coords), len(y_coords)
-        dx, dy = np.abs(x_coords[0] - x_coords[1]), np.abs(y_coords[0] - y_coords[1])
+        x_diff, y_diff = np.abs(np.diff(x_coords)), np.abs(np.diff(y_coords))
+        dx = np.min(x_diff[np.nonzero(x_diff)])
+        dy = np.min(y_diff[np.nonzero(y_diff)])
 
-        extent = [min(x_coords), max(x_coords), min(y_coords), max(y_coords)]
-
-        parts = self.sams[0].filepath.parts
-
-        self.sample_idx = sample_names.index(parts[-2])
-        self.name = f"Sample {self.sample_idx + 1} {parts[-3]}"
-
+        extent = [x_coords[0], x_coords[-1], y_coords[0], y_coords[-1]]
 
         return {"w": w, "h": h, "dx": dx, "dy": dy, "dt": dt, "samples": samples, "extent": extent}
 
@@ -116,17 +117,15 @@ class Image:
         omega = 2 * pi * freqs
         f_idx = np.argmin(np.abs(freqs - selected_freq_))
 
-        """
-        sub_img_cache_path = self.sub_image.cache_path / f"_n_sub_{measurement.position}_{selected_freq_}.npy"
         try:
-            n_sub = np.load(sub_img_cache_path)
-        except FileNotFoundError:
-            n_sub = tmm_eval(self.sub_image, measurement.position, single_f_idx=f_idx)
-            np.save(sub_img_cache_path, n_sub)
-        """
-        n_sub = np.load(ROOT_DIR / "Evaluation" / f"n_sub.npy")
+            sub_file = list((ROOT_DIR / "Evaluation").glob(f"**/n_sub_s{sample_idx + 1}*.npy"))[0]
+            n_sub = np.load(sub_file)
+        except IndexError:
+            position = measurement.position
+            n_sub = tmm_eval(self.sub_image, position)
+            np.save(ROOT_DIR / "Evaluation" / f"n_sub_s{self.sample_idx + 1}_{position[0]}_{position[1]}.npy", n_sub)
+
         n_sub = n_sub[f_idx]
-        #n_sub = tmm_eval(self.sub_image, measurement.position, single_f_idx=f_idx)
         print(f"Substrate refractive index: {np.round(n_sub, 3)}")
 
         phase_shift = np.exp(-1j * (d_sub + d_film) * omega / c_thz)
@@ -143,7 +142,7 @@ class Image:
             return amp_loss + phi_loss
 
         bounds = shgo_bounds[self.sample_idx]
-        res = shgo(cost, bounds=bounds, iters=5)
+        res = shgo(cost, bounds=bounds, iters=shgo_iters)
 
         n_opt = res.x[0] + 1j * res.x[1]
 
@@ -155,9 +154,9 @@ class Image:
     def _calc_grid_vals(self, quantity="p2p", selected_freq=0.800):
         info = self.image_info
 
-        grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_5iter.npy"
+        grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_7iter.npy"
 
-        if isinstance(selected_freq, tuple):
+        if isinstance(selected_freq, tuple) and (quantity in ["MeanConductivity", "ConductivityRange"]):
             try:
                 grid_vals = np.load(str(grid_vals_cache_name))
             except FileNotFoundError:
@@ -167,12 +166,12 @@ class Image:
                 grid_vals = np.zeros((info["w"], info["h"], freq_cnt), dtype=complex)
                 for f_idx, freq in enumerate(self.freq_axis[freq_slice]):
                     for i, measurement in enumerate(self.sams):
-                        print(f"{round(100*i/len(self.sams), 2)} % done, Frequency: {f_idx} / {freq_cnt}. "
+                        print(f"{round(100 * i / len(self.sams), 2)} % done, Frequency: {f_idx} / {freq_cnt}. "
                               f"(Measurement: {i}/{len(self.sams)}, {measurement.position} mm)")
                         x_idx, y_idx = self._coords_to_idx(*measurement.position)
                         val = self._eval_conductivity(measurement, freq)
                         grid_vals[x_idx, y_idx, f_idx] = val
-                        print(f"Result: {int(val) * 10**-6} (MS/m)\n")
+                        print(f"Result: {int(val) * 10 ** -6} (MS/m)\n")
 
                 np.save(str(grid_vals_cache_name), grid_vals)
 
@@ -190,12 +189,12 @@ class Image:
                 grid_vals = np.zeros((info["w"], info["h"]), dtype=complex)
 
                 for i, measurement in enumerate(self.sams):
-                    print(f"{round(100*i/len(self.sams), 2)} % done. "
+                    print(f"{round(100 * i / len(self.sams), 2)} % done. "
                           f"(Measurement: {i}/{len(self.sams)}, {measurement.position} mm)")
                     x_idx, y_idx = self._coords_to_idx(*measurement.position)
                     val = self._eval_conductivity(measurement, selected_freq)
                     grid_vals[x_idx, y_idx] = val
-                    print(f"Result: {int(val) * 10**-6} (MS/m)\n")
+                    print(f"Result: {int(val) * 10 ** -6} (MS/m)\n")
 
                 np.save(str(grid_vals_cache_name), grid_vals)
         else:
@@ -204,7 +203,7 @@ class Image:
 
         return grid_vals.real
 
-    def plot_image(self, selected_freq, quantity="p2p", img_extent=None):
+    def plot_image(self, selected_freq=0.800, quantity="p2p", img_extent=None):
         if quantity == "p2p":
             label = ""
         elif quantity == "Conductivity":
@@ -224,9 +223,9 @@ class Image:
 
         grid_vals = grid_vals[w0:w1, h0:h1]
 
-        fig = plt.figure(f"{self.name}")
+        fig = plt.figure(f"{self.name} {sample_labels[self.sample_idx]}")
         ax = fig.add_subplot(111)
-        ax.set_title(f"{self.name}")
+        ax.set_title(f"{self.name} {sample_labels[self.sample_idx]}")
         fig.subplots_adjust(left=0.2)
 
         if img_extent is None:
@@ -241,7 +240,12 @@ class Image:
         ax.set_xlabel("x (mm)")
         ax.set_ylabel("y (mm)")
 
-        cbar = fig.colorbar(img)
+        def fmt(x, pos):
+            a, b = '{:.2e}'.format(x).split('e')
+            b = int(b)
+            return r'${} \times 10^{{{}}}$'.format(a, b)
+
+        cbar = fig.colorbar(img, format=ticker.FuncFormatter(fmt))
         cbar.set_label(f"{quantity}" + label, rotation=270, labelpad=30)
 
     def get_point(self, x, y, normalize=False, sub_offset=False, both=False, add_plot=False):
@@ -301,25 +305,28 @@ class Image:
         else:
             return ref_td
 
-    def plot_point(self, x, y, y_td=None, sub_noise_floor=False, label="", td_scale=1):
-        if y_td is None:
-            y_td = self.get_point(x, y, sub_offset=True)
+    def plot_point(self, x, y, sam_td=None, sub_noise_floor=False, label="", td_scale=1):
+        if sam_td is None:
+            sam_td = self.get_point(x, y, sub_offset=True)
 
         # y_td = filtering(y_td, wn=(2.000, 3.000), filt_type="bandpass", order=5)
-        y_fd = do_fft(y_td)
+        sam_fd = do_fft(sam_td)
         ref_td, ref_fd = self.get_ref(both=True, sub_offset=True, coords=(x, y))
+
+        phi_ref = phase_correction(ref_fd, fit_range=(0.55, 1.0), ret_interpol=True, rewrap=False, disable=False)
+        phi_sam = phase_correction(sam_fd, fit_range=(0.55, 1.0), ret_interpol=True, rewrap=False, disable=False)
 
         noise_floor = np.mean(20 * np.log10(np.abs(ref_fd[ref_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
 
         if not self.plotted_ref:
             plt.figure("Spectrum")
-            plt.plot(ref_fd[plot_range1, 0], 20 * np.log10(np.abs(ref_fd[plot_range1, 1])) - noise_floor, label="Reference")
+            plt.plot(ref_fd[plot_range1, 0], 20 * np.log10(np.abs(ref_fd[plot_range1, 1])) - noise_floor,
+                     label="Reference")
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Amplitude (dB)")
 
             plt.figure("Phase")
-            phase_correction = lambda x: np.angle(x[:, 1])
-            plt.plot(ref_fd[plot_range, 0], phase_correction(ref_fd[plot_range,]), label="Reference")
+            plt.plot(ref_fd[plot_range, 0], phi_ref[plot_range, 1], label="Reference")
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Phase (rad)")
 
@@ -331,41 +338,38 @@ class Image:
             self.plotted_ref = True
 
         label += f" (x={x} (mm), y={y} (mm))"
-        noise_floor = np.mean(20 * np.log10(np.abs(y_fd[y_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
+        noise_floor = np.mean(20 * np.log10(np.abs(sam_fd[sam_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
 
         plt.figure("Spectrum")
-        plt.plot(y_fd[plot_range1, 0], 20 * np.log10(np.abs(y_fd[plot_range1, 1])) - noise_floor, label=label)
+        plt.plot(sam_fd[plot_range1, 0], 20 * np.log10(np.abs(sam_fd[plot_range1, 1])) - noise_floor, label=label)
 
         plt.figure("Phase")
-        phase_correction = lambda x: np.angle(x[:, 1])
-        plt.plot(y_fd[plot_range, 0], phase_correction(y_fd[plot_range, ]), label=label)
+        plt.plot(sam_fd[plot_range1, 0], phi_sam[plot_range1, 1], label=label)
 
         plt.figure("Time domain")
-        plt.plot(y_td[:, 0], td_scale * y_td[:, 1], label=label + f" (Amplitude x {td_scale})")
+        plt.plot(sam_td[:, 0], td_scale * sam_td[:, 1], label=label + f" (Amplitude x {td_scale})")
 
     def histogram(self):
         grid_vals = self._calc_grid_vals(quantity="Conductivity", selected_freq=0.800)
 
-        print(grid_vals)
-
         plt.hist(grid_vals, density=True, bins=40)  # density=False would make counts
-        plt.ylabel("Probability")
-        plt.xlabel("Data")
-
-
+        plt.ylabel("Conductivity (S/m)")
+        plt.xlabel("Count")
 
 
 if __name__ == '__main__':
-    sample_idx = 0
+    sample_idx = 3
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
 
     meas_dir = data_dir / "Coated" / sample_names[sample_idx]
     film_image = Image(data_path=meas_dir, sub_image=sub_image)
+    # s1, s2, s3 = [-10, 50, -3, 27]
+    # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=0.800)
 
-    film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="MeanConductivity", selected_freq=(0.3, 1.2))
-    #film_image.plot_image(img_extent=[-10, 60, -3, 27], quantity="Conductivity", selected_freq=0.800)
+    # s4 = [18, 51, 0, 20]
+    film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="Conductivity", selected_freq=0.800)
 
     for fig_label in plt.get_figlabels():
         if "Sample" in fig_label:

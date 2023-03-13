@@ -71,7 +71,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
     # s1_film_td = filtering(s1_film_td, filt_type="hp", wn=0.25, order=5)
     # s1_film_td = filtering(s1_film_td, filt_type="lp", wn=1.75, order=5)
-    image.plot_point(x=eval_point[0], y=eval_point[1], y_td=film_td, label=f"Sample {sample_idx + 1}",
+    image.plot_point(x=eval_point[0], y=eval_point[1], sam_td=film_td, label=f"Sample {sample_idx + 1}",
                      td_scale=plot_td_scale,
                      sub_noise_floor=True)
 
@@ -92,10 +92,10 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
     image_sub = Image(data_dir_film)
 
     try:
-        n_sub = np.load("n_sub.npy")
+        n_sub = np.load(f"n_sub_s{sample_idx}_{eval_point[0]}_{eval_point[1]}.npy")
     except FileNotFoundError:
-        n_sub = tmm_eval(image_sub, meas_point=(20, 9))
-        np.save("n_sub.npy", n_sub)
+        n_sub = tmm_eval(image_sub, eval_point=eval_point)
+        np.save(f"n_sub_s{sample_idx}_{eval_point[0]}_{eval_point[1]}.npy", n_sub)
 
     # n_sub *= np.random.random(n_sub.shape)
 
@@ -351,7 +351,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
 
 if __name__ == '__main__':
-    main(sample_idx=0, eval_point=(30, 10))
+    main(sample_idx=0, eval_point=(20, 9))
 
     for fig_label in plt.get_figlabels():
         plt.figure(fig_label)

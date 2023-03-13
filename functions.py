@@ -67,8 +67,11 @@ def unwrap(data_fd):
     return phase_unwrapped
 
 
-def phase_correction(data_fd, fit_range=None, verbose=verbose, ret_interpol=False):
+def phase_correction(data_fd, disable=False, fit_range=None, verbose=verbose, ret_interpol=False, rewrap=False):
     freqs = data_fd[:, 0].real
+
+    if disable:
+        return array([freqs, np.angle(data_fd[:, 1])]).T
 
     phase_unwrapped = unwrap(data_fd)
 
@@ -81,7 +84,7 @@ def phase_correction(data_fd, fit_range=None, verbose=verbose, ret_interpol=Fals
     phase_corrected = phase_unwrapped - p[1].real
 
     if verbose:
-        plt.figure("Offset correction")
+        plt.figure("phase_correction")
         plt.plot(freqs, phase_unwrapped, label="Unwrapped phase")
         plt.plot(freqs, phase_corrected, label="Shifted phase")
         plt.plot(freqs, freqs * p[0].real, label="Lin. fit (slope*freq)")
@@ -90,9 +93,13 @@ def phase_correction(data_fd, fit_range=None, verbose=verbose, ret_interpol=Fals
         plt.legend()
 
     if ret_interpol:
-        return p[0].real * freqs
+        phase_corrected = p[0].real * freqs
 
-    return phase_corrected
+    if rewrap:
+        phase_corrected = np.angle(np.exp(1j * phase_corrected))
+
+    return array([freqs, phase_corrected]).T
+
 
 def window(data_td, win_len=None, win_start=None, shift=None, en_plot=False):
     t, y = data_td[:, 0], data_td[:, 1]
