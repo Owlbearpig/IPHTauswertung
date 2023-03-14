@@ -105,9 +105,9 @@ def get_all_measurements(post_process=None, data_dir_=None):
     measurements = []
 
     if data_dir_ is not None:
-        glob = data_dir_.glob("**/*")
+        glob = data_dir_.glob("**/*.txt")
     else:
-        glob = data_dir.glob("**/*")
+        glob = data_dir.glob("**/*.txt")
 
     for file_path in glob:
         if file_path.is_file():

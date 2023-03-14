@@ -59,19 +59,17 @@ def unwrap(data_fd):
         y = nan_to_num(data_fd[:, 1])
     else:
         y = nan_to_num(data_fd)
+        return np.unwrap(np.angle(y))
 
-    phase = np.angle(y)
-
-    phase_unwrapped = np.unwrap(phase)
-
-    return phase_unwrapped
+    return array([data_fd[:, 0].real, np.unwrap(np.angle(y))]).T
 
 
-def phase_correction(data_fd, disable=False, fit_range=None, verbose=verbose, ret_interpol=False, rewrap=False):
+def phase_correction(data_fd, disable=False, fit_range=None, en_plot=False, extrapolate=False, rewrap=False,
+                     ret_fd=False, both=False):
     freqs = data_fd[:, 0].real
 
     if disable:
-        return array([freqs, np.angle(data_fd[:, 1])]).T
+        return array([freqs, np.unwrap(np.angle(data_fd[:, 1]))]).T
 
     phase_unwrapped = unwrap(data_fd)
 
@@ -79,29 +77,47 @@ def phase_correction(data_fd, disable=False, fit_range=None, verbose=verbose, re
         fit_range = [0.40, 0.75]
 
     fit_slice = (freqs >= fit_range[0]) * (freqs <= fit_range[1])
-    p = np.polyfit(freqs[fit_slice], phase_unwrapped[fit_slice], 1)
+    p = np.polyfit(freqs[fit_slice], phase_unwrapped[fit_slice, 1], 1)
 
-    phase_corrected = phase_unwrapped - p[1].real
+    phase_corrected = phase_unwrapped[:, 1] - p[1].real
 
-    if verbose:
+    if en_plot:
         plt.figure("phase_correction")
-        plt.plot(freqs, phase_unwrapped, label="Unwrapped phase")
+        plt.plot(freqs, phase_unwrapped[:, 1], label="Unwrapped phase")
         plt.plot(freqs, phase_corrected, label="Shifted phase")
         plt.plot(freqs, freqs * p[0].real, label="Lin. fit (slope*freq)")
         plt.xlabel("Frequency (THz)")
         plt.ylabel("Phase (rad)")
         plt.legend()
 
-    if ret_interpol:
+    if extrapolate:
         phase_corrected = p[0].real * freqs
 
     if rewrap:
         phase_corrected = np.angle(np.exp(1j * phase_corrected))
 
-    return array([freqs, phase_corrected]).T
+    y = np.abs(data_fd[:, 1]) * np.exp(1j * phase_corrected)
+    if both:
+        return do_ifft(array([freqs, y]).T), array([freqs, y]).T
+
+    if ret_fd:
+        return array([freqs, y]).T
+    else:
+        return array([freqs, phase_corrected]).T
 
 
-def window(data_td, win_len=None, win_start=None, shift=None, en_plot=False):
+def zero_pad(data_td, length=100):
+    t, y = data_td[:, 0], data_td[:, 1]
+    dt = np.mean(np.diff(data_td[:, 0]))
+    cnt = int(length / dt)
+
+    new_t = np.concatenate((t, np.arange(t[-1], t[-1] + cnt * dt, dt)))
+    new_y = np.concatenate((y, np.zeros(cnt)))
+
+    return array([new_t, new_y]).T
+
+
+def window(data_td, win_len=None, win_start=None, shift=None, en_plot=False, slope=0.15):
     t, y = data_td[:, 0], data_td[:, 1]
     pulse_width = 10  # ps
     dt = np.mean(np.diff(t))
@@ -124,7 +140,7 @@ def window(data_td, win_len=None, win_start=None, shift=None, en_plot=False):
         win_start = 0
 
     pre_pad = np.zeros(win_start)
-    window_arr = signal.windows.tukey(win_len, 0.50)
+    window_arr = signal.windows.tukey(win_len, slope)
     post_pad = np.zeros(len(y) - win_len - win_start)
 
     window_arr = np.concatenate((pre_pad, window_arr, post_pad))
@@ -142,7 +158,6 @@ def window(data_td, win_len=None, win_start=None, shift=None, en_plot=False):
         plt.xlabel("Time (ps)")
         plt.ylabel("Amplitude (nA)")
         plt.legend()
-        plt.show()
 
     return np.array([t, y_win]).T
 

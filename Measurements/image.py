@@ -1,10 +1,11 @@
+import itertools
 import random
 import re
 from consts import *
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from functions import do_fft, phase_correction
+from functions import do_fft, do_ifft, phase_correction, unwrap, window
 from measurements import get_all_measurements
 from tmm import coh_tmm
 from scipy.optimize import shgo
@@ -17,6 +18,7 @@ class Image:
     time_axis = None
     cache_path = None
     sample_idx = None
+    all_points = None
     name = ""
 
     def __init__(self, data_path, sub_image=None):
@@ -65,6 +67,8 @@ class Image:
 
         x_coords, y_coords = array(sorted(set(x_coords))), array(sorted(set(y_coords)))
 
+        self.all_points = list(itertools.product(x_coords, y_coords))
+
         w, h = len(x_coords), len(y_coords)
         x_diff, y_diff = np.abs(np.diff(x_coords)), np.abs(np.diff(y_coords))
         dx = np.min(x_diff[np.nonzero(x_diff)])
@@ -105,20 +109,28 @@ class Image:
         return x_idx, y_idx
 
     def _eval_conductivity(self, measurement, selected_freq_):
+        point = measurement.position
         d_film = sample_thicknesses[self.sample_idx]
         d_list = [inf, d_sub, d_film, inf]
 
         film_td = measurement.get_data_td()
-        film_fd = do_fft(film_td)
-        film_ref_td = self.get_ref(both=False, coords=measurement.position)
-        film_ref_fd = do_fft(film_ref_td)
+        film_ref_td = self.get_ref(both=False, coords=point)
+
+        film_td = window(film_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+        film_ref_td = window(film_ref_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+
+        film_ref_fd, film_fd = do_fft(film_ref_td), do_fft(film_td)
+
+        film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+        film_fd = phase_correction(film_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
 
         freqs = film_ref_fd[:, 0].real
         omega = 2 * pi * freqs
         f_idx = np.argmin(np.abs(freqs - selected_freq_))
 
         try:
-            sub_file = list((ROOT_DIR / "Evaluation").glob(f"**/n_sub_s{sample_idx + 1}*.npy"))[0]
+            sub_file = list((ROOT_DIR / "Evaluation").glob(f"**/n_sub_s{sample_idx + 1}*.npy"))[1]
+            sub_file = ROOT_DIR / "Evaluation" / "n_sub_s3_15.0_18.0.npy"
             n_sub = np.load(sub_file)
         except IndexError:
             position = measurement.position
@@ -141,20 +153,30 @@ class Image:
 
             return amp_loss + phi_loss
 
-        bounds = shgo_bounds[self.sample_idx]
-        res = shgo(cost, bounds=bounds, iters=shgo_iters)
+        bounds = shgo_bounds_film[self.sample_idx]
+        iters = shgo_iters
+        res = shgo(cost, bounds=bounds, iters=iters-2)
+        while (res.fun > 1e-5) and (point[0] < 55):
+            iters += 1
+            res = shgo(cost, bounds=bounds, iters=iters)
+            if iters >= 7:
+                break
 
         n_opt = res.x[0] + 1j * res.x[1]
 
         epsilon = n_opt ** 2
         sigma = 1j * (1 - epsilon) * epsilon_0 * omega[f_idx] * THz
 
+        print(f"Result: {np.round(int(sigma) * 10 ** -6, 3)} (MS/m), "
+              f"n: {np.round(n_opt, 3)}, "
+              f"loss: {res.fun}, \n")
+
         return sigma
 
     def _calc_grid_vals(self, quantity="p2p", selected_freq=0.800):
         info = self.image_info
 
-        grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_7iter.npy"
+        grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s3_15.0_18.0.npy"
 
         if isinstance(selected_freq, tuple) and (quantity in ["MeanConductivity", "ConductivityRange"]):
             try:
@@ -171,7 +193,6 @@ class Image:
                         x_idx, y_idx = self._coords_to_idx(*measurement.position)
                         val = self._eval_conductivity(measurement, freq)
                         grid_vals[x_idx, y_idx, f_idx] = val
-                        print(f"Result: {int(val) * 10 ** -6} (MS/m)\n")
 
                 np.save(str(grid_vals_cache_name), grid_vals)
 
@@ -194,7 +215,6 @@ class Image:
                     x_idx, y_idx = self._coords_to_idx(*measurement.position)
                     val = self._eval_conductivity(measurement, selected_freq)
                     grid_vals[x_idx, y_idx] = val
-                    print(f"Result: {int(val) * 10 ** -6} (MS/m)\n")
 
                 np.save(str(grid_vals_cache_name), grid_vals)
         else:
@@ -240,7 +260,7 @@ class Image:
         ax.set_xlabel("x (mm)")
         ax.set_ylabel("y (mm)")
 
-        def fmt(x):
+        def fmt(x, val):
             a, b = '{:.2e}'.format(x).split('e')
             b = int(b)
             return r'${} \times 10^{{{}}}$'.format(a, b)
@@ -308,13 +328,18 @@ class Image:
     def plot_point(self, x, y, sam_td=None, sub_noise_floor=False, label="", td_scale=1):
         if sam_td is None:
             sam_td = self.get_point(x, y, sub_offset=True)
-
+        ref_td = self.get_ref(sub_offset=True, coords=(x, y))
         # y_td = filtering(y_td, wn=(2.000, 3.000), filt_type="bandpass", order=5)
-        sam_fd = do_fft(sam_td)
-        ref_td, ref_fd = self.get_ref(both=True, sub_offset=True, coords=(x, y))
 
-        phi_ref = phase_correction(ref_fd, fit_range=(0.55, 1.0), ret_interpol=False, rewrap=False, disable=False)
-        phi_sam = phase_correction(sam_fd, fit_range=(0.55, 1.0), ret_interpol=False, rewrap=False, disable=False)
+        sam_td = window(sam_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+        ref_td = window(ref_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+
+        ref_fd, sam_fd = do_fft(ref_td), do_fft(sam_td)
+
+        sam_td, sam_fd = phase_correction(sam_fd, fit_range=(0.8, 1.6), extrapolate=True, both=True)
+        ref_td, ref_fd = phase_correction(ref_fd, fit_range=(0.8, 1.6), extrapolate=True, both=True)
+
+        phi_ref, phi_sam = unwrap(ref_fd), unwrap(sam_fd)
 
         noise_floor = np.mean(20 * np.log10(np.abs(ref_fd[ref_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
 
@@ -326,7 +351,7 @@ class Image:
             plt.ylabel("Amplitude (dB)")
 
             plt.figure("Phase")
-            plt.plot(ref_fd[plot_range, 0], phi_ref[plot_range, 1], label="Reference")
+            plt.plot(ref_fd[plot_range1, 0], phi_ref[plot_range1, 1], label="Reference")
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Phase (rad)")
 
@@ -358,7 +383,7 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 3
+    sample_idx = 0
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
@@ -366,10 +391,10 @@ if __name__ == '__main__':
     meas_dir = data_dir / "Coated" / sample_names[sample_idx]
     film_image = Image(data_path=meas_dir, sub_image=sub_image)
     # s1, s2, s3 = [-10, 50, -3, 27]
-    # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=0.800)
+    film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=0.800)
 
     # s4 = [18, 51, 0, 20]
-    film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="Conductivity", selected_freq=0.800)
+    # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="Conductivity", selected_freq=0.800)
 
     for fig_label in plt.get_figlabels():
         if "Sample" in fig_label:
