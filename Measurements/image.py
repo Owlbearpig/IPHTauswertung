@@ -240,7 +240,7 @@ class Image:
         ax.set_xlabel("x (mm)")
         ax.set_ylabel("y (mm)")
 
-        def fmt(x, pos):
+        def fmt(x):
             a, b = '{:.2e}'.format(x).split('e')
             b = int(b)
             return r'${} \times 10^{{{}}}$'.format(a, b)
@@ -313,8 +313,8 @@ class Image:
         sam_fd = do_fft(sam_td)
         ref_td, ref_fd = self.get_ref(both=True, sub_offset=True, coords=(x, y))
 
-        phi_ref = phase_correction(ref_fd, fit_range=(0.55, 1.0), ret_interpol=True, rewrap=False, disable=False)
-        phi_sam = phase_correction(sam_fd, fit_range=(0.55, 1.0), ret_interpol=True, rewrap=False, disable=False)
+        phi_ref = phase_correction(ref_fd, fit_range=(0.55, 1.0), ret_interpol=False, rewrap=False, disable=False)
+        phi_sam = phase_correction(sam_fd, fit_range=(0.55, 1.0), ret_interpol=False, rewrap=False, disable=False)
 
         noise_floor = np.mean(20 * np.log10(np.abs(ref_fd[ref_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
 

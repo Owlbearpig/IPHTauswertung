@@ -64,7 +64,7 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
             bounds = sub_bounds[sam_idx]
 
             # phi_ = array([freqs, np.angle(sub_fd[:, 1])]).T
-            phi_ = phase_correction(sub_fd, fit_range=(0.20, 3.0), ret_interpol=True, rewrap=True)
+            phi_ = phase_correction(sub_fd, disable=True, fit_range=(0.20, 1.0), ret_interpol=True, rewrap=True)
 
             def cost(p, f_idx):
                 n = array([1, p[0] + 1j * p[1], 1])
@@ -105,7 +105,7 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
         sam_tmm_shgo_td, sam_tmm_shgo_fd = calc_model(n_shgo)
 
         phi_tmm = phase_correction(sam_tmm_shgo_fd, disable=False, fit_range=(0.55, 1.0),
-                                   ret_interpol=True, rewrap=False)
+                                   ret_interpol=False, rewrap=False)
         label = f"{sub_image.name} (TMM) x={eval_point[0]} mm, y={eval_point[1]} mm"
         if en_plot:
             plt.figure("RI")
@@ -139,9 +139,9 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
 if __name__ == '__main__':
     from Measurements.image import Image
 
-    sam_idx = 1
+    sam_idx = 0
     image_data = data_dir / "Uncoated" / sample_names[sam_idx]
-    eval_point = (20, 9)  # used for s1-s3
+    eval_point = (9, 9)  # used for s1-s3
     # eval_point = (33, 11)  # s4
 
     image = Image(image_data)
