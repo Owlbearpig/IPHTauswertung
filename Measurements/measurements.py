@@ -64,7 +64,7 @@ class Measurement:
         if self.post_process_config["sub_offset"]:
             self._data_td[:, 1] -= np.mean(self._data_td[:10, 1])
         if self.post_process_config["en_windowing"]:
-            self._data_td = windowing(self._data_td)
+            self._data_td = window(self._data_td)
 
         self.pre_process_done = True
 

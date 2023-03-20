@@ -5,7 +5,7 @@ from numpy import array
 from Measurements.measurements import get_all_measurements
 from Measurements.image import Image
 import matplotlib.pyplot as plt
-from tmm import coh_tmm
+from tmm_slim import coh_tmm
 from functions import do_ifft, filtering, do_fft, phase_correction, to_db, get_noise_floor, window, unwrap, zero_pad
 from sub_eval_tmm_numerical import tmm_eval
 from mpl_settings import *
@@ -62,7 +62,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
     if eval_point is None:
         eval_point = (30.0, 10.0)
 
-    plt_title = f"Sample {sample_idx + 1} {sample_names[sample_idx]}"
+    plt_title = f"Sample {sample_idx + 1} {sample_labels[sample_idx]}"
 
     data_dir_film = data_dir / "Coated" / sample_names[sample_idx]
 
@@ -75,20 +75,32 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
     film_ref_fd, film_fd = do_fft(film_ref_td), do_fft(film_td)
 
-    film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
-    film_fd = phase_correction(film_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+    film_ref_td, film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=True,
+                                   en_plot=False, both=True)
+    film_td, film_fd = phase_correction(film_fd, fit_range=(0.8, 1.6), extrapolate=True,
+                               en_plot=False, both=True)
 
-    image.plot_point(*eval_point, sam_td=film_td, label=f"Sample {sample_idx + 1}", td_scale=plot_td_scale,
-                     sub_noise_floor=True)
+    image.plot_point(*eval_point, sam_td=film_td, ref_td=film_ref_td,
+                     label=f"Sample {sample_idx + 1}", td_scale=plot_td_scale, sub_noise_floor=True)
 
     data_dir_film = data_dir / "Uncoated" / sample_names[sample_idx]
     image_sub = Image(data_dir_film)
 
-    try:
-        n_sub = np.load(f"n_sub_s{sample_idx}_{eval_point[0]}_{eval_point[1]}.npy")
-    except FileNotFoundError:
-        n_sub = tmm_eval(image_sub, eval_point=eval_point)
-        np.save(f"n_sub_s{sample_idx}_{eval_point[0]}_{eval_point[1]}.npy", n_sub)
+    #"""
+
+    one2onesub = True
+    if one2onesub:
+        try:
+            n_sub = np.load(f"n_sub_s{sample_idx}_{eval_point[0]}_{eval_point[1]}.npy")
+        except FileNotFoundError:
+            n_sub = tmm_eval(image_sub, eval_point=eval_point)
+            np.save(f"n_sub_s{sample_idx}_{eval_point[0]}_{eval_point[1]}.npy", n_sub)
+    else:
+        try:
+            n_sub = np.load(f"n_sub_s{sample_idx + 1}_9_9.npy")
+        except FileNotFoundError:
+            n_sub = tmm_eval(image_sub, eval_point=eval_point)
+            np.save(f"n_sub_s{sample_idx + 1}_9_9.npy", n_sub)
 
     # n_sub *= np.random.random(n_sub.shape)
 
@@ -99,15 +111,21 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
     omega = 2 * pi * freqs
     phase_shift = np.exp(-1j * (d_sub + d_film) * omega / c_thz)
 
+    measurement = image.get_measurement(*eval_point)
+    ref_interpol_fd = np.zeros_like(freqs, dtype=complex)
+    for f_idx, freq in enumerate(freqs):
+        ref_interpol_fd[f_idx] = image._ref_interpolation(measurement, selected_freq_=freqs[f_idx], ret_cart=True)
+
     def calc_model(n_list):
         ts_tmm_fd = np.zeros_like(freqs, dtype=complex)
         for f_idx, freq in enumerate(freqs):
             lam_vac = c_thz / freq
             n = n_list[f_idx]
-            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)["t"]
+            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
             ts_tmm_fd[f_idx] = t_tmm_fd
 
         sam_tmm_fd = array([freqs, ts_tmm_fd * film_ref_fd[:, 1] * phase_shift]).T
+        #sam_tmm_fd = array([freqs, ts_tmm_fd * ref_interpol_fd * phase_shift]).T
         sam_tmm_td = do_ifft(sam_tmm_fd)
 
         return sam_tmm_td, sam_tmm_fd
@@ -118,7 +136,9 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
         def cost(p, f_idx):
             n = array([1, n_sub[f_idx], p[0] + 1j * p[1], 1])
             lam_vac = c_thz / freqs[f_idx]
-            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)["t"]
+            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
+
+            # sam_tmm_fd = t_tmm_fd * film_ref_interpol_fd * phase_shift[f_idx]
             sam_tmm_fd = t_tmm_fd * film_ref_fd[f_idx, 1] * phase_shift[f_idx]
 
             amp_loss = (np.abs(sam_tmm_fd) - np.abs(film_fd[f_idx, 1])) ** 2
@@ -131,15 +151,15 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
             if freq <= 2.0:
                 print(f"Frequency: {freq} (THz), (idx: {f_idx})")
                 if freq <= 0.25:
-                    res = shgo(cost, bounds=bounds, args=(f_idx,), iters=5)
+                    res = shgo(cost, bounds=bounds, args=(f_idx,), iters=4)
                 else:
-                    res = shgo(cost, bounds=bounds, args=(f_idx,), iters=shgo_iters - 2)
-                    if res.fun > 1e-5:
-                        res = shgo(cost, bounds=bounds, args=(f_idx,), iters=shgo_iters)
-                        if res.fun > 1e-5:
-                            res = shgo(cost, bounds=bounds, args=(f_idx,), iters=shgo_iters + 1)
-                            if res.fun > 1e-5:
-                                res = shgo(cost, bounds=bounds, args=(f_idx,), iters=shgo_iters + 2)
+                    iters = shgo_iters - 3
+                    res = shgo(cost, bounds=bounds, args=(f_idx,), iters=iters - 2)
+                    while res.fun > 1e-5:
+                        iters += 1
+                        res = shgo(cost, bounds=bounds, args=(f_idx,), iters=iters)
+                        if iters >= 8:
+                            break
 
                 n_film[f_idx] = res.x[0] + 1j * res.x[1]
                 print(n_film[f_idx], f"Fun: {res.fun}", "\n")
@@ -188,8 +208,8 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
         plt.figure("Spectrum")
         plt.title(plt_title)
-        plt.scatter(sam_tmm_simple_fd[plot_range1, 0],
-                    to_db(sam_tmm_simple_fd[plot_range1, 1]) - noise_floor, label="Model (TMM)", zorder=2,
+        plt.scatter(sam_tmm_simple_fd[plot_range, 0],
+                    to_db(sam_tmm_simple_fd[plot_range, 1]) - noise_floor, label="Model (TMM)", zorder=2,
                     color="Green")
 
         plt.figure("Phase")
@@ -204,7 +224,8 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
 
 if __name__ == '__main__':
-    main(sample_idx=0, eval_point=(20, 9))
+    #main(sample_idx=1, eval_point=(24, 23))
+    main(sample_idx=1, eval_point=(24.0, 23.0))
 
     for fig_label in plt.get_figlabels():
         plt.figure(fig_label)

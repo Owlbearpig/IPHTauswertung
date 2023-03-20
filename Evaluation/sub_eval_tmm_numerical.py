@@ -5,7 +5,7 @@ from scipy.optimize import shgo
 from consts import *
 from numpy import array
 import matplotlib.pyplot as plt
-from tmm import coh_tmm
+from tmm_slim import coh_tmm
 from functions import do_ifft, do_fft, phase_correction, to_db, window
 from sub_eval import analytical_eval
 from mpl_settings import *
@@ -21,8 +21,8 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
 
     sub_ref_fd, sub_fd = do_fft(sub_ref_td), do_fft(sub_td)
 
-    sub_ref_fd = phase_correction(sub_ref_fd, fit_range=(0.55, 1.00), extrapolate=True, ret_fd=True)
-    sub_fd = phase_correction(sub_fd, fit_range=(0.55, 1.00), extrapolate=True, ret_fd=True)
+    sub_ref_fd = phase_correction(sub_ref_fd, fit_range=(0.60, 1.60), extrapolate=True, ret_fd=True)
+    sub_fd = phase_correction(sub_fd, fit_range=(0.60, 1.60), extrapolate=True, ret_fd=True)
 
     freqs = sub_fd[:, 0].real
     omega = 2 * pi * freqs
@@ -36,7 +36,7 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
         for f_idx, freq in enumerate(freqs):
             lam_vac = c_thz / freq
             n = n_list[f_idx]
-            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)["t"]
+            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
             ts_tmm_fd[f_idx] = t_tmm_fd
 
         sam_tmm_fd = array([freqs, ts_tmm_fd * sub_ref_fd[:, 1] * phase_shift]).T
@@ -71,7 +71,7 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
             def cost(p, f_idx):
                 n = array([1, p[0] + 1j * p[1], 1])
                 lam_vac = c_thz / freqs[f_idx]
-                t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)["t"]
+                t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
                 sam_tmm_fd = t_tmm_fd * sub_ref_fd[f_idx, 1] * phase_shift[f_idx]
 
                 amp_loss = (np.abs(sam_tmm_fd) - np.abs(sub_fd[f_idx, 1])) ** 2
@@ -79,31 +79,34 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
 
                 return amp_loss + phi_loss
 
-            if single_f_idx is not None:
-                freq = freqs[single_f_idx]
-                print(f"Frequency: {freq} (THz), (idx: {single_f_idx})")
-                res = shgo(cost, bounds=bounds, args=(single_f_idx,), iters=shgo_iters)
+            def optimize(f_idx_, max_iters=8):
+                iters = shgo_iters - 3
+                print(f"Frequency: {freqs[f_idx_]} (THz), (idx: {f_idx_})")
+                res = shgo(cost, bounds=bounds, args=(f_idx_,), iters=iters - 2)
+                while res.fun > 1e-10:
+                    iters += 1
+                    res = shgo(cost, bounds=bounds, args=(f_idx_,), iters=iters)
+                    if iters >= max_iters:
+                        break
+
                 print(res.x, res.fun)
+
+                return res
+
+
+            if single_f_idx is not None:
+                res = optimize(single_f_idx)
 
                 return res.x[0] + 1j * res.x[1]
             else:
                 n_sub = np.zeros(len(freqs), dtype=complex)
                 for f_idx, freq in enumerate(freqs):
-                    # lol while loop maybe ???
-                    if freq <= 4:
-                        print(f"Frequency: {freq} (THz), (idx: {f_idx})")
-                        if freq <= 0.25:
-                            res = shgo(cost, bounds=bounds, args=(f_idx,), iters=5)
-                        else:
-                            res = shgo(cost, bounds=bounds, args=(f_idx,), iters=shgo_iters-2)
-                            if res.fun > 1e-5:
-                                res = shgo(cost, bounds=bounds, args=(f_idx,), iters=shgo_iters)
-                                if res.fun > 1e-5:
-                                    res = shgo(cost, bounds=bounds, args=(f_idx,), iters=shgo_iters + 1)
-                                    if res.fun > 1e-5:
-                                        res = shgo(cost, bounds=bounds, args=(f_idx,), iters=shgo_iters + 2)
+                    if freq < 0.15:
+                        res = optimize(f_idx, max_iters=5)
 
-                        print(res.x, res.fun, "\n")
+                        n_sub[f_idx] = res.x[0] + 1j * res.x[1]
+                    elif freq <= 4:
+                        res = optimize(f_idx)
 
                         n_sub[f_idx] = res.x[0] + 1j * res.x[1]
                     else:
@@ -113,7 +116,9 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
 
         sam_tmm_shgo_td, sam_tmm_shgo_fd = calc_model(n_shgo)
 
-        phi_tmm = phase_correction(sam_tmm_shgo_fd, disable=False, fit_range=(0.55, 1.0))
+        phi_tmm = phase_correction(sam_tmm_shgo_fd, disable=True, fit_range=(0.55, 1.0))
+
+        absorption = 2*n_sub.imag*omega*THz/c0
         label = f"{sub_image.name} (TMM) x={eval_point[0]} mm, y={eval_point[1]} mm"
         if en_plot:
             plt.figure("RI")
@@ -127,6 +132,12 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
             plt.plot(freqs[plot_range_sub], n_sub[plot_range_sub].imag, label=label)
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Extinction coefficient")
+
+            plt.figure("Absorption")
+            plt.title("Absorption substrates")
+            plt.plot(freqs[plot_range_sub], 0.01*absorption[plot_range_sub], label=label)
+            plt.xlabel("Frequency (THz)")
+            plt.ylabel("Absorption (1/cm)")
 
             plt.figure("Spectrum")
             plt.title("Spectrum substrates")
@@ -147,17 +158,33 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
 if __name__ == '__main__':
     from Measurements.image import Image
 
-    sam_idx = 3
-    image_data = data_dir / "Uncoated" / sample_names[sam_idx]
+    sample_idx = 3
+    image_data = data_dir / "Uncoated" / sample_names[sample_idx]
     image = Image(image_data)
+    image.plot_image(quantity="p2p")
 
-    eval_point = random.choice(image.all_points)
+    for i in range(4):
+        sample_idx = 3
+        image_data = data_dir / "Uncoated" / sample_names[sample_idx]
+        image = Image(image_data)
+
+        while True:
+            eval_point = random.choice(image.all_points)
+            if (20 < eval_point[0]) * (eval_point[0] < 50):
+                if (0 < eval_point[1]) * (eval_point[1] < 20):
+                    break
+
+        n_sub = tmm_eval(sub_image=image, eval_point=eval_point, en_plot=True)
+        #image.plot_point(*eval_point, label=f"Sample {sam_idx + 1} Uncoated")
+
     # eval_point = (20, 10)  # used for s1-s3
     # eval_point = (33, 11)  # s4
+    # eval_point = (28, 27)
 
-    image.plot_point(*eval_point, label=f"Sample {sam_idx+1} Uncoated")
-    n_sub = tmm_eval(sub_image=image, eval_point=eval_point, en_plot=True)
-    np.save(f"n_sub_s{sam_idx + 1}_{eval_point[0]}_{eval_point[1]}.npy", n_sub)
+
+    # n_sub = tmm_eval(sub_image=image, eval_point=eval_point, en_plot=True)
+
+    # np.save(f"n_sub_s{sam_idx + 1}_{eval_point[0]}_{eval_point[1]}.npy", n_sub)
 
     """
     sam_idx = 1

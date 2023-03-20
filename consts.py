@@ -7,17 +7,18 @@ from numpy import pi, inf, array
 
 # Directly indexed; don't change order
 sample_names = ["10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqrd_s3", "5x5cm_sqrd"]
-sample_labels = ["(200 nm Ag)", "(500 nm AlZnO)", "(200 nm Ag + 500 nm AlZnO)", "(200 nm ITO)"]
+sample_labels = ["(200 nm Ag)", "(500 nm Al:ZnO)", "(200 nm Ag + 500 nm Al:ZnO)", "(200 nm ITO)"]
 sample_thicknesses = [0.000200, 0.0005, 0.0007, 0.0002]  # in mm
-shgo_bounds_film = [[(0, 600), (0, 600)],
-                    [(0, 30), (0, 30)],
+shgo_bounds_film = [[(1, 600), (0, 600)],
+                    [(5, 27), (10, 27)],
                     [(100, 200), (0, 100)],
-                    [(0, 300), (0, 100)],
+                    [(1, 100), (50, 100)],
                     ]
-shgo_bounds_sub = [[(1.5, 1.8), (0.01, 0.30)],
-                   [(1.5, 2.1), (0.01, 0.30)],
-                   [(1.5, 2.1), (0.01, 0.30)],
-                   [(1.5, 2.1), (0.01, 0.30)],
+
+shgo_bounds_sub = [[(1.5, 1.9), (0.01, 0.30)],
+                   [(1.5, 1.9), (0.01, 0.30)],
+                   [(1.5, 1.9), (0.01, 0.30)],
+                   [(1.5, 1.9), (0.01, 0.40)],
                    ]
 
 shgo_bounds_drude = [[(0, 1e7), (0, 1)],
@@ -34,7 +35,7 @@ drude_fit_range = (0.3, 2.0)
 
 plot_range = slice(25, 200)
 # plot_range = slice(25, 1000)
-plot_range1 = slice(1, 500)
+plot_range1 = slice(1, 1000)
 # plot_range1 = slice(1, 1000)
 plot_range_sub = slice(25, 350)
 # plot_range_sub = slice(25, 1000)
@@ -42,7 +43,7 @@ plot_range_sub = slice(25, 350)
 
 cur_os = os.name
 
-c_thz = c0 * 10 ** -9
+c_thz = c0 * 10 ** -9 # mm / s
 
 um = 10 ** -6
 THz = 10 ** 12
