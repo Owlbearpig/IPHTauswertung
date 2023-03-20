@@ -23,7 +23,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
     if eval_point is None:
         eval_point = (30.0, 10.0)
 
-    plt_title = f"Sample {sample_idx + 1} {sample_labels[sample_idx]} (x={eval_point[0]} mm, y={eval_point[1]} mm)"
+    plt_title = f"Sample {sample_idx + 1} {sample_labels[sample_idx]}\n(x={eval_point[0]} mm, y={eval_point[1]} mm)"
 
     data_dir_film = data_dir / "Coated" / sample_names[sample_idx]
 
@@ -36,10 +36,8 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
     film_ref_fd, film_fd = do_fft(film_ref_td), do_fft(film_td)
 
-    film_ref_td, film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=True,
-                                                en_plot=True, both=True)
-    film_td, film_fd = phase_correction(film_fd, fit_range=(0.8, 1.6), extrapolate=True,
-                                        en_plot=True, both=True)
+    film_ref_td, film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=True, en_plot=True, both=True)
+    film_td, film_fd = phase_correction(film_fd, fit_range=(0.8, 1.6), extrapolate=True, en_plot=True, both=True)
 
     image.plot_point(*eval_point, sam_td=film_td, ref_td=film_ref_td,
                      label=f"Sample {sample_idx + 1}", td_scale=plot_td_scale, sub_noise_floor=True)
@@ -94,7 +92,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
         def cost(p, f_idx):
             # n = array([1, n_sub[f_idx], p[0] + 1j * p[1], p[2] + 1j * p[3], 1])
-            n = array([1, n_sub[f_idx], p[0] + 1j * p[0], p[1] + 1j * p[1], 1])
+            n = array([1, n_sub[f_idx], p[0] + 1j * p[1], p[2] + 1j * p[3], 1])
             lam_vac = c_thz / freqs[f_idx]
             t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
 
@@ -110,7 +108,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
         for f_idx, freq in enumerate(freqs):
             if freq <= 2.0:
                 print(f"Frequency: {freq} (THz), (idx: {f_idx})")
-                if freq <= 0.25:
+                if freq <= 0.50:
                     res = shgo(cost, bounds=bounds, args=(f_idx,), iters=4)
                 else:
                     iters = shgo_iters - 3
@@ -118,11 +116,11 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
                     while res.fun > 1e-5:
                         iters += 1
                         res = shgo(cost, bounds=bounds, args=(f_idx,), iters=iters)
-                        if iters >= 8:
+                        if iters >= 4:
                             break
 
                 # n_film[f_idx] = array([res.x[0] + 1j * res.x[1], res.x[2] + 1j * res.x[3]])
-                n_film[f_idx] = array([res.x[0] + 1j * res.x[0], res.x[1] + 1j * res.x[1]])
+                n_film[f_idx] = array([res.x[0] + 1j * res.x[1], res.x[2] + 1j * res.x[3]])
                 print(n_film[f_idx], f"Fun: {res.fun}", "\n")
             else:
                 n_film[f_idx] = n_film[f_idx - 1]
@@ -148,6 +146,8 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
     n_model = array([one, n_sub, n_ag, n_al, one], dtype=complex).T
     sam_tmm_simple_td, sam_tmm_simple_fd = calc_model(n_model)
+
+    sam_tmm_simple_td[:, 1] -= sam_tmm_simple_td[0, 1]
 
     def fmt(x, val):
         a, b = '{:.2e}'.format(x).split('e')

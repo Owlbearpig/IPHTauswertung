@@ -119,7 +119,10 @@ class Image:
     def _eval_conductivity(self, measurement, selected_freq_):
         point = measurement.position
         d_film = sample_thicknesses[self.sample_idx]
-        d_list = [inf, d_sub, d_film, inf]
+        if self.sample_idx == 2:
+            d_list = [inf, d_sub, *d_film, inf]
+        else:
+            d_list = [inf, d_sub, d_film, inf]
 
         film_td = measurement.get_data_td()
         film_ref_td = self.get_ref(both=False, coords=point)
@@ -160,16 +163,20 @@ class Image:
 
         print(f"Substrate refractive index: {np.round(n_sub, 3)}")
 
-        phase_shift = np.exp(-1j * (d_sub + d_film) * omega / c_thz)
+        phase_shift = np.exp(-1j * (d_sub + np.sum(d_film)) * omega / c_thz)
         film_ref_interpol = self._ref_interpolation(measurement, selected_freq_=selected_freq_, ret_cart=True)
 
         def cost(p):
-            n = array([1, n_sub, p[0] + 1j * p[1], 1])
+            if self.sample_idx == 2:
+                n = array([1, n_sub, p[0] + 1j * p[1], p[2] + 1j * p[3], 1])
+            else:
+                n = array([1, n_sub, p[0] + 1j * p[1], 1])
+
             lam_vac = c_thz / freqs[f_idx]
             t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
 
-            # sam_tmm_fd = t_tmm_fd * film_ref_fd[f_idx, 1] * phase_shift[f_idx]
-            sam_tmm_fd = t_tmm_fd * film_ref_interpol * phase_shift[f_idx]
+            sam_tmm_fd = t_tmm_fd * film_ref_fd[f_idx, 1] * phase_shift[f_idx]
+            # sam_tmm_fd = t_tmm_fd * film_ref_interpol * phase_shift[f_idx]
 
             amp_loss = (np.abs(sam_tmm_fd) - np.abs(film_fd[f_idx, 1])) ** 2
             phi_loss = (np.angle(sam_tmm_fd) - np.angle(film_fd[f_idx, 1])) ** 2
@@ -182,12 +189,16 @@ class Image:
         while (res.fun > 1e-10) and (point[0] < 55):
             iters += 1
             res = shgo(cost, bounds=bounds, iters=iters)
-            if iters >= 8:
+            if iters >= 5:
                 break
 
-        n_opt = res.x[0] + 1j * res.x[1]
+        if self.sample_idx == 2:
+            n_opt = res.x[0] + 1j * res.x[1], res.x[2] + 1j * res.x[3]
+        else:
+            n_opt = res.x[0] + 1j * res.x[1]
 
-        epsilon = n_opt ** 2
+        epsilon = n_opt[0] ** 2
+        # epsilon = n_opt[1] ** 2
         sigma = 1j * (1 - epsilon) * epsilon_0 * omega[f_idx] * THz
 
         print(f"Result: {np.round(sigma * 10 ** -6, 5)} (MS/m), "
@@ -222,7 +233,7 @@ class Image:
     def _calc_grid_vals(self, quantity="p2p", selected_freq=0.800):
         info = self.image_info
 
-        grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s{self.sample_idx + 1}_121sub_ref_interpol.npy"
+        grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s{self.sample_idx + 1}_121sub_layer1.npy"
         # grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s{self.sample_idx + 1}_10_10.npy"
 
         if isinstance(selected_freq, tuple) and (quantity in ["MeanConductivity", "ConductivityRange"]):
@@ -577,8 +588,8 @@ if __name__ == '__main__':
 
     # s1, s2, s3 = [-10, 50, -3, 27]
     #sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    #film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=1.200)
+    #film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
+    film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=1.200)
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
     # sub_image.system_stability(selected_freq_=0.800)
