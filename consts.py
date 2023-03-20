@@ -8,11 +8,12 @@ from numpy import pi, inf, array
 # Directly indexed; don't change order
 sample_names = ["10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqrd_s3", "5x5cm_sqrd"]
 sample_labels = ["(200 nm Ag)", "(500 nm Al:ZnO)", "(200 nm Ag + 500 nm Al:ZnO)", "(200 nm ITO)"]
-sample_thicknesses = [0.000200, 0.0005, 0.0007, 0.0002]  # in mm
+sample_thicknesses = [0.0002, 0.0005, [0.0002, 0.0005], 0.0002]  # in mm
 shgo_bounds_film = [[(1, 600), (0, 600)],
                     [(5, 27), (10, 27)],
-                    [(100, 200), (0, 100)],
-                    [(1, 100), (50, 100)],
+                    # [(1, 700), (0, 700), (1, 100), (0, 100)],
+                    [(1, 700), (0, 80), ],
+                    [(30, 100), (30, 90)],
                     ]
 
 shgo_bounds_sub = [[(1.5, 1.9), (0.01, 0.30)],

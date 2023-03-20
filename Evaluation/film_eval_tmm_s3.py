@@ -11,51 +11,11 @@ from functions import do_ifft, filtering, do_fft, phase_correction, to_db, get_n
 from sub_eval_tmm_numerical import tmm_eval
 from mpl_settings import *
 
-
-def drude_fit(sigma_exp, omega, sample_idx):
-    f0, f1 = drude_fit_range
-    freqs = omega / (2 * pi)
-    freq_slice = (f0 < freqs) * (freqs < f1)
-
-    freqs = freqs[freq_slice]
-    omega = omega[freq_slice]
-    sigma_exp = sigma_exp[freq_slice]
-
-    def drude_model(dc, tau, omega):
-        return dc / (1 - 1j * omega * tau)
-
-    def cost(p):
-        dc, tau = p
-        sigma_model = drude_model(dc, tau, omega)
-
-        loss = np.sum((sigma_model.real - sigma_exp.real) ** 2 + (sigma_model.imag - sigma_exp.imag) ** 2)
-
-        loss = np.sum((sigma_model.real - sigma_exp.real) ** 2)
-        # loss = np.sum((sigma_model.imag - sigma_exp.imag) ** 2)
-
-        return loss
-
-    bounds = shgo_bounds_drude[sample_idx]
-
-    res = shgo(cost, bounds=bounds, iters=6)
-    print(res)
-
-    sigma_model = drude_model(*res.x, omega)
-
-    plt.figure("Drude fit")
-    plt.plot(freqs, sigma_exp.real, label="Measurement (real)")
-    plt.plot(freqs, sigma_exp.imag, label="Measurement (imaginary)")
-    plt.plot(freqs, sigma_model.real, label="Drude (real)")
-    plt.plot(freqs, sigma_model.imag, label="Drude (imaginary)")
-    plt.xlabel("Frequency (THz)")
-    plt.ylabel("Conductivity (S/m)")
-
-    dc, tau = res.x
-
-    return dc, tau
+"""
+order: emitter - sub - Ag 200 nm - AlZnO 500 nm - receiver  
+"""
 
 
-# -2, 16
 def main(en_plot=True, sample_idx=0, eval_point=None):
     d_film = sample_thicknesses[sample_idx]
     plot_td_scale = td_scales[sample_idx]
@@ -71,23 +31,21 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
     film_td = image.get_point(*eval_point, sub_offset=True, add_plot=False)
     film_ref_td = image.get_ref(both=False, coords=eval_point)
 
-    film_td = window(film_td, win_len=12, shift=0, en_plot=False, slope=0.05)
-    film_ref_td = window(film_ref_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+    film_td = window(film_td, win_len=25, shift=0, en_plot=False, slope=0.30)
+    film_ref_td = window(film_ref_td, win_len=25, shift=0, en_plot=False, slope=0.30)
 
     film_ref_fd, film_fd = do_fft(film_ref_td), do_fft(film_td)
 
     film_ref_td, film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=True,
-                                   en_plot=False, both=True)
+                                                en_plot=True, both=True)
     film_td, film_fd = phase_correction(film_fd, fit_range=(0.8, 1.6), extrapolate=True,
-                               en_plot=False, both=True)
+                                        en_plot=True, both=True)
 
     image.plot_point(*eval_point, sam_td=film_td, ref_td=film_ref_td,
                      label=f"Sample {sample_idx + 1}", td_scale=plot_td_scale, sub_noise_floor=True)
 
     data_dir_film = data_dir / "Uncoated" / sample_names[sample_idx]
     image_sub = Image(data_dir_film)
-
-    #"""
 
     one2onesub = True
     if one2onesub:
@@ -107,10 +65,10 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
     freqs = film_ref_fd[:, 0].real
     one = np.ones_like(freqs)
-    d_list = [inf, d_sub, d_film, inf]
+    d_list = [inf, d_sub, *d_film, inf]
 
     omega = 2 * pi * freqs
-    phase_shift = np.exp(-1j * (d_sub + d_film) * omega / c_thz)
+    phase_shift = np.exp(-1j * (d_sub + np.sum(d_film)) * omega / c_thz)
 
     measurement = image.get_measurement(*eval_point)
     ref_interpol_fd = np.zeros_like(freqs, dtype=complex)
@@ -126,16 +84,17 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
             ts_tmm_fd[f_idx] = t_tmm_fd
 
         sam_tmm_fd = array([freqs, ts_tmm_fd * film_ref_fd[:, 1] * phase_shift]).T
-        #sam_tmm_fd = array([freqs, ts_tmm_fd * ref_interpol_fd * phase_shift]).T
+        # sam_tmm_fd = array([freqs, ts_tmm_fd * ref_interpol_fd * phase_shift]).T
         sam_tmm_td = do_ifft(sam_tmm_fd)
 
         return sam_tmm_td, sam_tmm_fd
 
-    def simple_fit():
+    def tmm_fit():
         bounds = shgo_bounds_film[sample_idx]
 
         def cost(p, f_idx):
-            n = array([1, n_sub[f_idx], p[0] + 1j * p[1], 1])
+            # n = array([1, n_sub[f_idx], p[0] + 1j * p[1], p[2] + 1j * p[3], 1])
+            n = array([1, n_sub[f_idx], p[0] + 1j * p[0], p[1] + 1j * p[1], 1])
             lam_vac = c_thz / freqs[f_idx]
             t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
 
@@ -147,7 +106,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
             return amp_loss + phi_loss
 
-        n_film = np.zeros(len(freqs), dtype=complex)
+        n_film = np.zeros((len(freqs), 2), dtype=complex)
         for f_idx, freq in enumerate(freqs):
             if freq <= 2.0:
                 print(f"Frequency: {freq} (THz), (idx: {f_idx})")
@@ -162,41 +121,33 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
                         if iters >= 8:
                             break
 
-                n_film[f_idx] = res.x[0] + 1j * res.x[1]
+                # n_film[f_idx] = array([res.x[0] + 1j * res.x[1], res.x[2] + 1j * res.x[3]])
+                n_film[f_idx] = array([res.x[0] + 1j * res.x[0], res.x[1] + 1j * res.x[1]])
                 print(n_film[f_idx], f"Fun: {res.fun}", "\n")
             else:
                 n_film[f_idx] = n_film[f_idx - 1]
 
         return n_film
 
+    """
     x, y = eval_point
     try:
-        n_film = np.load(f"n_opt_simple_fit_s{sample_idx + 1}_{x}_{y}.npy")
-        n_film_300 = np.load(f"n_opt_simple_fit_s{sample_idx + 1}_{x}_{y}_300nm.npy")
-        n_film_200 = np.load(f"n_opt_simple_fit_s{sample_idx + 1}_{x}_{y}_200nm.npy")
+        n_film = np.load(f"n_s{sample_idx + 1}_{x}_{y}.npy")
     except FileNotFoundError:
-        n_film = simple_fit()
-        np.save(f"n_opt_simple_fit_s{sample_idx + 1}_{x}_{y}.npy", n_film)
-        #n_film_300 = simple_fit()
-        #np.save(f"n_opt_simple_fit_s{sample_idx + 1}_{x}_{y}_300nm.npy", n_film_300)
+        n_film = tmm_fit()
+        np.save(f"n_s{sample_idx + 1}_{x}_{y}.npy", n_film)
+    """
+    n_film = tmm_fit()
 
-    epsilon_film = n_film ** 2
+    n_ag, n_al = n_film[:, 0], n_film[:, 1]
 
-    epsilon_200 = n_film_200 ** 2
-    epsilon_300 = n_film_300 ** 2
-    sigma_200 = 1j * (1 - epsilon_200) * epsilon_0 * omega * THz
-    sigma_300 = 1j * (1 - epsilon_300) * epsilon_0 * omega * THz
-    # sigma_dc, tau = drude_fit(sigma_300, omega, sample_idx)
+    epsilon_ag, epsilon_al = n_ag ** 2, n_al ** 2
 
-    n_simple_300 = array([one, n_sub, n_film_300, one], dtype=complex).T
-    n_simple_200 = array([one, n_sub, n_film_200, one], dtype=complex).T
+    sigma_ag = 1j * (1 - epsilon_ag) * epsilon_0 * omega * THz
+    sigma_al = 1j * (1 - epsilon_al) * epsilon_0 * omega * THz
 
-    sigma = 1j * (1 - epsilon_film) * epsilon_0 * omega * THz
-    n_simple = array([one, n_sub, n_film, one], dtype=complex).T
-    sam_tmm_simple_td, sam_tmm_simple_fd = calc_model(n_simple)
-
-    #sam_tmm_simple_td_300, sam_tmm_simple_fd_300 = calc_model(n_simple_300)
-    #sam_tmm_simple_td_200, sam_tmm_simple_fd_200 = calc_model(n_simple_200)
+    n_model = array([one, n_sub, n_ag, n_al, one], dtype=complex).T
+    sam_tmm_simple_td, sam_tmm_simple_fd = calc_model(n_model)
 
     def fmt(x, val):
         a, b = '{:.2e}'.format(x).split('e')
@@ -207,33 +158,21 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
         plt.figure("Conductivity")
         plt.title("Conductivity " + plt_title)
         plt.ticklabel_format(scilimits=(-2, 3))
-        #plt.plot(freqs[plot_range], sigma[plot_range].real, label="Real part")
-        #plt.plot(freqs[plot_range], sigma[plot_range].imag, label="Imaginary part")
-        plt.plot(freqs[plot_range], sigma_200[plot_range].real, label="Real part $d_{film}=$ 200 nm")
-        plt.plot(freqs[plot_range], sigma_300[plot_range].real, label="Real part $d_{film}=$ 300 nm")
-        plt.plot(freqs[plot_range], sigma_200[plot_range].imag, ":", label="Imaginary part $d_{film}=$ 200 nm")
-        plt.plot(freqs[plot_range], sigma_300[plot_range].imag, ":", label="Imaginary part $d_{film}=$ 300 nm")
+        plt.plot(freqs[plot_range], sigma_ag[plot_range].real, label="Real part Ag")
+        plt.plot(freqs[plot_range], sigma_al[plot_range].real, label="Real part Al")
+        plt.plot(freqs[plot_range], sigma_ag[plot_range].imag, label="Imaginary part Ag")
+        plt.plot(freqs[plot_range], sigma_al[plot_range].imag, label="Imaginary part Al")
         plt.xlabel("Frequency (THz)")
         plt.ylabel("Conductivity (S/m)")
 
         plt.figure("RI")
         plt.title(plt_title)
-        #plt.plot(freqs[plot_range], n_film[plot_range].real, label="Refractive index (TMM)")
-        #plt.plot(freqs[plot_range], n_film[plot_range].imag, label="Extinction coefficient (TMM)")
-        plt.plot(freqs[plot_range], n_film_200[plot_range].real, label="Refractive index $d_{film}=$ 200 nm(TMM)")
-        plt.plot(freqs[plot_range], n_film_300[plot_range].real, label="Refractive index $d_{film}=$ 300 nm(TMM)")
-        plt.plot(freqs[plot_range], n_film_200[plot_range].imag, ":", label="Extinction coefficient $d_{film}=$ 200 nm(TMM)")
-        plt.plot(freqs[plot_range], n_film_300[plot_range].imag, ":", label="Extinction coefficient $d_{film}=$ 300 nm(TMM)")
+        plt.plot(freqs[plot_range], n_ag[plot_range].real, label="Refractive index Ag")
+        plt.plot(freqs[plot_range], n_al[plot_range].real, label="Refractive index Al")
+        plt.plot(freqs[plot_range], n_ag[plot_range].imag, ":", label="Extinction coefficient Ag")
+        plt.plot(freqs[plot_range], n_al[plot_range].imag, ":", label="Extinction coefficient Al")
         plt.xlabel("Frequency (THz)")
         plt.ylabel("Complex refractive index")
-
-        plt.figure("Extinction coefficient")
-        plt.title(plt_title)
-        plt.plot(freqs[plot_range], n_film[plot_range].imag, label="Extinction coefficient (TMM)")
-        #plt.plot(freqs[plot_range], n_film[plot_range].imag, label="Extinction coefficient $d_{film}=$ 200 nm(TMM)")
-        #plt.plot(freqs[plot_range], n_film[plot_range].imag, label="Extinction coefficient $d_{film}=$ 300 nm(TMM)")
-        plt.xlabel("Frequency (THz)")
-        plt.ylabel("Extinction coefficient")
 
         noise_floor = get_noise_floor(film_fd)
 
@@ -241,7 +180,6 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
         plt.title(plt_title)
         plt.scatter(sam_tmm_simple_fd[plot_range, 0], to_db(sam_tmm_simple_fd[plot_range, 1]) - noise_floor,
                     label="Model (TMM)", zorder=2, color="Green")
-        #plt.scatter(sam_tmm_simple_fd_200[plot_range, 0], to_db(sam_tmm_simple_fd_200[plot_range, 1]) - noise_floor, label="Model (TMM)", zorder=2, color="Green")
 
         plt.figure("Phase")
         plt.title(plt_title)
@@ -255,9 +193,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
 
 if __name__ == '__main__':
-    # main(sample_idx=3, eval_point=(24, 23))
-    #main(sample_idx=0, eval_point=(24, 23))
-    main(sample_idx=3, eval_point=(33.0, 11.0))
+    main(sample_idx=2, eval_point=(33.0, 11.0))
 
     for fig_label in plt.get_figlabels():
         plt.figure(fig_label)

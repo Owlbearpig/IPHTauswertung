@@ -1,6 +1,8 @@
 import itertools
 import random
 import re
+import timeit
+
 from consts import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -177,10 +179,10 @@ class Image:
         bounds = shgo_bounds_film[self.sample_idx]
         iters = shgo_iters-3
         res = shgo(cost, bounds=bounds, iters=iters - 2)
-        while (res.fun > 1e-5) and (point[0] < 55):
+        while (res.fun > 1e-10) and (point[0] < 55):
             iters += 1
             res = shgo(cost, bounds=bounds, iters=iters)
-            if iters >= 7:
+            if iters >= 8:
                 break
 
         n_opt = res.x[0] + 1j * res.x[1]
@@ -417,8 +419,8 @@ class Image:
             sam_td = self.get_point(x, y, sub_offset=True)
             ref_td = self.get_ref(sub_offset=True, coords=(x, y))
 
-            sam_td = window(sam_td, win_len=20, shift=0, en_plot=False, slope=0.05)
-            ref_td = window(ref_td, win_len=20, shift=0, en_plot=False, slope=0.05)
+            sam_td = window(sam_td, win_len=25, shift=0, en_plot=False, slope=0.05)
+            ref_td = window(ref_td, win_len=25, shift=0, en_plot=False, slope=0.05)
 
             ref_fd, sam_fd = do_fft(ref_td), do_fft(sam_td)
 
@@ -461,7 +463,7 @@ class Image:
         plt.plot(sam_fd[plot_range1, 0], phi_sam[plot_range1, 1], label=label)
 
         plt.figure("Time domain")
-        plt.plot(sam_td[:, 0], td_scale * sam_td[:, 1], label=label + f" (Amplitude x {td_scale})")
+        plt.plot(sam_td[:, 0], td_scale * sam_td[:, 1], label=label + f"\n(Amplitude x {td_scale})")
 
     def histogram(self):
         grid_vals = self._calc_grid_vals(quantity="Conductivity", selected_freq=0.800)
@@ -479,9 +481,9 @@ class Image:
         meas_times = [(ref.meas_time - t0).total_seconds() / 3600 for ref in self.refs]
         for ref in self.refs:
             ref_td = ref.get_data_td()
-            ref_td = window(ref_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+            #ref_td = window(ref_td, win_len=12, shift=0, en_plot=False, slope=0.05)
             ref_fd = do_fft(ref_td)
-            ref_fd = phase_correction(ref_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+            #ref_fd = phase_correction(ref_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
 
             ref_ampl_arr.append(np.sum(np.abs(ref_fd[f_idx, 1])) / 1)
             ref_angle_arr.append(np.angle(ref_fd[f_idx, 1]))
@@ -537,13 +539,13 @@ class Image:
         t = [(ref_before.meas_time - t0).total_seconds(), (ref_after.meas_time - t0).total_seconds()]
         ref_before_td, ref_after_td = ref_before.get_data_td(), ref_after.get_data_td()
 
-        ref_before_td = window(ref_before_td, win_len=12, shift=0, en_plot=False, slope=0.05)
-        ref_after_td = window(ref_after_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+        #ref_before_td = window(ref_before_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+        #ref_after_td = window(ref_after_td, win_len=12, shift=0, en_plot=False, slope=0.05)
 
         ref_before_fd, ref_after_fd = do_fft(ref_before_td), do_fft(ref_after_td)
 
-        ref_before_fd = phase_correction(ref_before_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
-        ref_after_fd = phase_correction(ref_after_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+        #ref_before_fd = phase_correction(ref_before_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+        #ref_after_fd = phase_correction(ref_after_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
 
         #if isinstance(selected_freq_, tuple):
 
@@ -563,7 +565,7 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 3
+    sample_idx = 2
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
@@ -575,15 +577,17 @@ if __name__ == '__main__':
 
     # s1, s2, s3 = [-10, 50, -3, 27]
     #sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    #film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
+    film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
     #film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=1.200)
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
-    film_image.system_stability(selected_freq_=1.200)
+    # sub_image.system_stability(selected_freq_=0.800)
+    # film_image.system_stability(selected_freq_=1.200)
 
     # s4 = [18, 51, 0, 20]
-    film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="Conductivity", selected_freq=1.200)
-    #film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="power", selected_freq=(1.150, 1.250))
+    # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p", selected_freq=1.200)
+    # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="Conductivity", selected_freq=0.600)
+    # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="power", selected_freq=(1.150, 1.250))
 
     for fig_label in plt.get_figlabels():
         if "Sample" in fig_label:
