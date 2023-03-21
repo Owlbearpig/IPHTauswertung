@@ -490,14 +490,17 @@ class Image:
 
         t0 = self.refs[0].meas_time
         meas_times = [(ref.meas_time - t0).total_seconds() / 3600 for ref in self.refs]
-        for ref in self.refs:
+        for i, ref in enumerate(self.refs):
             ref_td = ref.get_data_td()
             #ref_td = window(ref_td, win_len=12, shift=0, en_plot=False, slope=0.05)
             ref_fd = do_fft(ref_td)
             #ref_fd = phase_correction(ref_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
 
             ref_ampl_arr.append(np.sum(np.abs(ref_fd[f_idx, 1])) / 1)
-            ref_angle_arr.append(np.angle(ref_fd[f_idx, 1]))
+            phi = np.angle(ref_fd[f_idx, 1])
+            if i and (abs(ref_angle_arr[-1] - phi) > pi):
+                phi -= 2*pi
+            ref_angle_arr.append(phi)
 
         random.seed(10)
         rnd_sam = random.choice(self.sams)
@@ -515,16 +518,16 @@ class Image:
         plt.figure("System stability amplitude")
         plt.title("Single frequency reference amplitude")
         plt.plot(meas_times, ref_ampl_arr, label=f"Amplitude at {selected_freq_} THz")
-        plt.plot(sam_t1, amp_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
-        plt.plot(sam_t2, amp_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
+        #plt.plot(sam_t1, amp_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
+        #plt.plot(sam_t2, amp_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
         plt.xlabel("Measurement time (hour)")
         plt.ylabel("Amplitude (Arb. u.)")
 
         plt.figure("System stability angle")
         plt.title("Single frequency reference phase")
         plt.plot(meas_times, ref_angle_arr, label=f"Phase at {selected_freq_} THz")
-        plt.plot(sam_t1, phi_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
-        plt.plot(sam_t2, phi_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
+        #plt.plot(sam_t1, phi_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
+        #plt.plot(sam_t2, phi_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
         plt.xlabel("Measurement time (hour)")
         plt.ylabel("Phase (rad)")
 
@@ -589,7 +592,7 @@ if __name__ == '__main__':
     # s1, s2, s3 = [-10, 50, -3, 27]
     #sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
     #film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=1.200)
+    # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=1.200)
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
     # sub_image.system_stability(selected_freq_=0.800)
@@ -599,6 +602,11 @@ if __name__ == '__main__':
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p", selected_freq=1.200)
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="Conductivity", selected_freq=0.600)
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="power", selected_freq=(1.150, 1.250))
+
+    stability_dir = data_dir / "Stability" / "2023-03-20"
+
+    stability_image = Image(stability_dir)
+    stability_image.system_stability(selected_freq_=1.200)
 
     for fig_label in plt.get_figlabels():
         if "Sample" in fig_label:
