@@ -6,15 +6,17 @@ from scipy.constants import epsilon_0
 from numpy import pi, inf, array
 
 # Directly indexed; don't change order
-sample_names = ["10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqrd_s3", "5x5cm_sqrd", "2023-03-20"]
-#sample_labels = ["(200 nm Ag)", "(500 nm Al:ZnO)", "(200 nm Ag + 500 nm Al:ZnO)", "(200 nm ITO)"]
-sample_labels = ["(200 nm Ag)", "(500 nm Al:ZnO)", "(200 nm Ag)", "(200 nm ITO)"] # layer 1
-#sample_labels = ["(200 nm Ag)", "(500 nm Al:ZnO)", "(500 nm Al:ZnO)", "(200 nm ITO)"] # layer 2
-sample_thicknesses = [0.0002, 0.0005, [0.0002, 0.0005], 0.0002]  # in mm
+sample_names = ["10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqrd_s3", "5x5cm_sqrd", "2023-03-20", "2023-03-21"]
+sample_labels = ["(200 nm Ag)", "(500 nm Al:ZnO)", "(200 nm Ag + 500 nm Al:ZnO)", "(200 nm ITO)"]
+# sample_labels = ["(200 nm Ag)", "(500 nm Al:ZnO)", "(200 nm Ag)", "(200 nm ITO)"] # layer 1
+# sample_labels = ["(200 nm Ag)", "(500 nm Al:ZnO)", "(500 nm Al:ZnO)", "(200 nm ITO)"] # layer 2
+# sample_thicknesses = [0.0002, 0.0005, [0.0002, 0.0005], 0.0002]  # in mm
+sample_thicknesses = [0.0002, 0.0005, 0.0007, 0.0002]  # in mm
 shgo_bounds_film = [[(1, 600), (0, 600)],
                     [(5, 27), (10, 27)],
-                    [(50, 300), (50, 300), (5, 70), (10, 75)],
-                    #[(1, 700), (1, 100), (1, 60)],
+                    # [(50, 300), (50, 300), (5, 70), (10, 75)],
+                    [(1, 200), (0, 200)],
+                    # [(1, 700), (1, 100), (1, 60)],
                     [(1, 700), (0, 80), ],
                     [(30, 100), (30, 90)],
                     ]
@@ -39,7 +41,7 @@ drude_fit_range = (0.3, 2.0)
 
 plot_range = slice(25, 200)
 # plot_range = slice(25, 1000)
-plot_range1 = slice(1, 1000)
+plot_range1 = slice(0, 1000)
 # plot_range1 = slice(1, 1000)
 plot_range_sub = slice(25, 350)
 # plot_range_sub = slice(25, 1000)
@@ -47,7 +49,7 @@ plot_range_sub = slice(25, 350)
 
 cur_os = os.name
 
-c_thz = c0 * 10 ** -9 # mm / s
+c_thz = c0 * 10 ** -9  # mm / s
 
 um = 10 ** -6
 THz = 10 ** 12

@@ -1,5 +1,6 @@
 import matplotlib as mpl
 from consts import cur_os, Path
+import matplotlib.pyplot as plt
 #print(mpl.rcParams.keys())
 
 # mpl.rcParams['lines.linestyle'] = '--'
@@ -22,3 +23,5 @@ if 'posix' in cur_os:
 else:
     result_dir = Path(r"E:\Mega\AG\Projects\THz Conductivity\IPHT\Results")
 mpl.rcParams["savefig.directory"] = result_dir
+
+

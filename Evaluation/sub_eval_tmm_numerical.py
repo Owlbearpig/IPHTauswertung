@@ -1,5 +1,5 @@
 import random
-
+from load_teralyzervalues import teralyzer_read_point
 import numpy as np
 from scipy.optimize import shgo
 from consts import *
@@ -93,7 +93,6 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
 
                 return res
 
-
             if single_f_idx is not None:
                 res = optimize(single_f_idx)
 
@@ -119,11 +118,17 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
         phi_tmm = phase_correction(sam_tmm_shgo_fd, disable=True, fit_range=(0.55, 1.0))
 
         absorption = 2*n_sub.imag*omega*THz/c0
+
+        n_tera = teralyzer_read_point(*eval_point)
+
         label = f"{sub_image.name} (TMM) x={eval_point[0]} mm, y={eval_point[1]} mm"
         if en_plot:
             plt.figure("RI")
-            plt.title("Refractive index substrates")
-            plt.plot(freqs[plot_range_sub], n_sub[plot_range_sub].real, label=label)
+            plt.title("Complex refractive index substrates")
+            plt.plot(freqs[plot_range_sub], n_sub[plot_range_sub].real, label="Real part " + label)
+            plt.plot(freqs[plot_range_sub], n_sub[plot_range_sub].imag, label="Imaginary part " + label)
+            plt.plot(n_tera[:, 0], n_tera[:, 1].real, label=f"Real part (Teralyzer)\nx={eval_point[0]} mm, y={eval_point[1]} mm")
+            plt.plot(n_tera[:, 0], n_tera[:, 1].imag, label=f"Imaginary part (Teralyzer)\nx={eval_point[0]} mm, y={eval_point[1]} mm")
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Refractive index")
 
@@ -158,16 +163,17 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
 if __name__ == '__main__':
     from Measurements.image import Image
 
-    sample_idx = 3
+    sample_idx = 0
     image_data = data_dir / "Uncoated" / sample_names[sample_idx]
     image = Image(image_data)
-    image.plot_image(quantity="p2p")
+    # image.plot_image(quantity="p2p")
 
+    """
     for i in range(4):
         sample_idx = 3
         image_data = data_dir / "Uncoated" / sample_names[sample_idx]
         image = Image(image_data)
-
+        
         while True:
             eval_point = random.choice(image.all_points)
             if (20 < eval_point[0]) * (eval_point[0] < 50):
@@ -176,13 +182,13 @@ if __name__ == '__main__':
 
         n_sub = tmm_eval(sub_image=image, eval_point=eval_point, en_plot=True)
         #image.plot_point(*eval_point, label=f"Sample {sam_idx + 1} Uncoated")
+    """
 
     # eval_point = (20, 10)  # used for s1-s3
     # eval_point = (33, 11)  # s4
-    # eval_point = (28, 27)
+    eval_point = (42, 20)
 
-
-    # n_sub = tmm_eval(sub_image=image, eval_point=eval_point, en_plot=True)
+    n_sub = tmm_eval(sub_image=image, eval_point=eval_point, en_plot=True)
 
     # np.save(f"n_sub_s{sam_idx + 1}_{eval_point[0]}_{eval_point[1]}.npy", n_sub)
 

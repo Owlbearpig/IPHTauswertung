@@ -16,6 +16,14 @@ order: emitter - sub - Ag 200 nm - AlZnO 500 nm - receiver
 """
 
 
+def make_legend():
+    for fig_label in plt.get_figlabels():
+        print(fig_label)
+        if "sample" or "ref" in fig_label.lower():
+            plt.figure(fig_label)
+            plt.legend()
+
+
 def main(en_plot=True, sample_idx=0, eval_point=None):
     d_film = sample_thicknesses[sample_idx]
     plot_td_scale = td_scales[sample_idx]
@@ -35,12 +43,20 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
     film_ref_td = window(film_ref_td, win_len=25, shift=0, en_plot=False, slope=0.30)
 
     film_ref_fd, film_fd = do_fft(film_ref_td), do_fft(film_td)
-
-    film_ref_td, film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=True, en_plot=True, both=True)
+    """
+    image.plot_point(*eval_point, sam_td=film_td, ref_td=film_ref_td,
+                     label=f"Sample {sample_idx + 1}", td_scale=plot_td_scale, sub_noise_floor=True,
+                     title="Before phase correction")
+    make_legend()
+    plt.show()
+    """
+    film_ref_td, film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=True, en_plot=True,
+                                                both=True)
     film_td, film_fd = phase_correction(film_fd, fit_range=(0.8, 1.6), extrapolate=True, en_plot=True, both=True)
 
     image.plot_point(*eval_point, sam_td=film_td, ref_td=film_ref_td,
-                     label=f"Sample {sample_idx + 1}", td_scale=plot_td_scale, sub_noise_floor=True)
+                     label=f"Sample {sample_idx + 1}", td_scale=plot_td_scale, sub_noise_floor=True,
+                     title="After phase correction")
 
     data_dir_film = data_dir / "Uncoated" / sample_names[sample_idx]
     image_sub = Image(data_dir_film)
@@ -193,10 +209,8 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 
 
 if __name__ == '__main__':
-    main(sample_idx=2, eval_point=(33.0, 11.0))
+    main(sample_idx=0, eval_point=(33.0, 11.0))
 
-    for fig_label in plt.get_figlabels():
-        plt.figure(fig_label)
-        plt.legend()
+
 
     plt.show()
