@@ -266,19 +266,28 @@ def main(en_plot=True, sample_idx=0, eval_point=None, d_film=None):
 if __name__ == '__main__':
     # main(sample_idx=3, eval_point=(24, 23))
     #main(sample_idx=0, eval_point=(24, 23))
-    sample_idx = 1
+    sample_idx = 0
     d_film = sample_thicknesses[sample_idx]
-    d_film *= 1.0
+    d_film *= 1.2
     eval_point = (24.0, 23.0)
 
     sigma0 = main(sample_idx=sample_idx, eval_point=eval_point, d_film=d_film)
-    sigma_plus = main(sample_idx=sample_idx, eval_point=eval_point, d_film=d_film*0.9)
-    sigma_minus = main(sample_idx=sample_idx, eval_point=eval_point, d_film=d_film*1.1)
+    #sigma_plus = main(sample_idx=sample_idx, eval_point=eval_point, d_film=d_film*0.9)
+    #sigma_minus = main(sample_idx=sample_idx, eval_point=eval_point, d_film=d_film*1.1)
 
-    sigma0_fft = np.fft.fft(sigma0[plot_range].real)
+    y = sigma0[slice(25, 150), 1].real
+    y = y - np.mean(y)
+    freqs_qd = np.fft.fftfreq(n=len(y))
+    pos_slice = freqs_qd >= 0
+
+    plt.figure("data used for fft")
+    plt.plot(y)
+
+    sigma0_fft = np.fft.fft(y)
     plt.figure("fft sigma")
     plt.title(f"{d_film*1e6} nm")
-    plt.plot(np.abs(sigma0_fft))
+    plt.plot(freqs_qd[pos_slice], np.abs(sigma0_fft[pos_slice]))
+
 
     freqs = sigma0[:, 0].real
     plt_title = f"Sample {sample_idx + 1} {sample_labels[sample_idx]}\n(x={eval_point[0]} mm, y={eval_point[1]} mm)"
@@ -286,16 +295,17 @@ if __name__ == '__main__':
     plt.figure("Conductivity")
     plt.title("Conductivity " + plt_title)# + f"{d_film*1e6} nm")
     plt.ticklabel_format(scilimits=(-2, 3))
-    plt.fill_between(freqs[plot_range], sigma0[plot_range, 1].real, sigma_minus[plot_range, 1].real, alpha=0.5, color="blue", label=r"$d_{film}$ $\pm 10$ %")
+    #plt.fill_between(freqs[plot_range], sigma0[plot_range, 1].real, sigma_minus[plot_range, 1].real, alpha=0.5, color="blue", label=r"$d_{film}$ $\pm 10$ %")
     plt.plot(freqs[plot_range], sigma0[plot_range, 1].real, label="Real part", color="blue")
-    plt.fill_between(freqs[plot_range], sigma0[plot_range, 1].real, sigma_plus[plot_range, 1].real, alpha=0.5, color="blue")
+    #plt.fill_between(freqs[plot_range], sigma0[plot_range, 1].real, sigma_plus[plot_range, 1].real, alpha=0.5, color="blue")
 
-    plt.fill_between(freqs[plot_range], sigma0[plot_range, 1].imag, sigma_minus[plot_range, 1].imag, alpha=0.5, color="red", label=r"$d_{film}$ $\pm 10$ %")
+    #plt.fill_between(freqs[plot_range], sigma0[plot_range, 1].imag, sigma_minus[plot_range, 1].imag, alpha=0.5, color="red", label=r"$d_{film}$ $\pm 10$ %")
     plt.plot(freqs[plot_range], sigma0[plot_range, 1].imag, label="Imaginary part", color="red")
-    plt.fill_between(freqs[plot_range], sigma0[plot_range, 1].imag, sigma_plus[plot_range, 1].imag, alpha=0.5, color="red")
+    #plt.fill_between(freqs[plot_range], sigma0[plot_range, 1].imag, sigma_plus[plot_range, 1].imag, alpha=0.5, color="red")
 
     plt.xlabel("Frequency (THz)")
     plt.ylabel("Conductivity (S/m)")
+
 
     for fig_label in plt.get_figlabels():
         plt.figure(fig_label)
