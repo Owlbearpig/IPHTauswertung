@@ -10,7 +10,7 @@ import matplotlib.ticker as ticker
 from functions import do_fft, do_ifft, phase_correction, unwrap, window
 from measurements import get_all_measurements
 from tmm_slim import coh_tmm
-#from tmm import coh_tmm
+# from tmm import coh_tmm
 from scipy.optimize import shgo
 from Evaluation.sub_eval_tmm_numerical import tmm_eval
 
@@ -163,7 +163,8 @@ class Image:
             except FileNotFoundError:
                 position = (10, 10)
                 n_sub = tmm_eval(self.sub_image, position)
-                np.save(ROOT_DIR / "Evaluation" / f"n_sub_s{self.sample_idx + 1}_{position[0]}_{position[1]}.npy", n_sub)
+                np.save(ROOT_DIR / "Evaluation" / f"n_sub_s{self.sample_idx + 1}_{position[0]}_{position[1]}.npy",
+                        n_sub)
             n_sub = n_sub[f_idx]
 
         print(f"Substrate refractive index: {np.round(n_sub, 3)}")
@@ -187,11 +188,12 @@ class Image:
             phi_loss = (np.angle(sam_tmm_fd) - np.angle(film_fd[f_idx, 1])) ** 2
 
             return amp_loss + phi_loss
+
         if "bounds" not in kwargs.keys():
             bounds = shgo_bounds_film[self.sample_idx]
         else:
             bounds = kwargs["bounds"]
-        iters = shgo_iters-3
+        iters = shgo_iters - 3
         res = shgo(cost, bounds=bounds, iters=iters - 2)
         while (res.fun > 1e-10) and (point[0] < 55):
             iters += 1
@@ -228,7 +230,7 @@ class Image:
             power_val_sam = np.sum(np.abs(sam_fd[freq_slice, 1])) / np.sum(freq_slice)
             power_val_ref = np.sum(np.abs(ref_fd[freq_slice, 1])) / np.sum(freq_slice)
 
-            return (power_val_sam / power_val_ref)**2
+            return (power_val_sam / power_val_ref) ** 2
 
         grid_vals = self._empty_grid.copy()
 
@@ -299,7 +301,7 @@ class Image:
                       f"(Measurement: {i}/{len(self.sams)}, {measurement.position} mm)")
                 x_idx, y_idx = self._coords_to_idx(*measurement.position)
                 amp_, _ = self._ref_interpolation(measurement, selected_freq_=selected_freq,
-                                              ret_cart=False)
+                                                  ret_cart=False)
                 grid_vals[x_idx, y_idx] = amp_
         elif quantity.lower() == "loss":
             grid_vals = self._empty_grid.copy()
@@ -319,7 +321,7 @@ class Image:
                       f"(Measurement: {i}/{len(self.sams)}, {measurement.position} mm)")
                 x_idx, y_idx = self._coords_to_idx(*measurement.position)
                 _, phi_ = self._ref_interpolation(measurement, selected_freq_=selected_freq,
-                                              ret_cart=False)
+                                                  ret_cart=False)
                 grid_vals[x_idx, y_idx] = phi_
         else:
             # grid_vals = np.argmax(np.abs(self.image_data[:, :, int(17 / info["dt"]):int(20 / info["dt"])]), axis=2)
@@ -343,8 +345,8 @@ class Image:
 
         plt.figure("Conductivity vs thickness")
         plt.title(f"Conductivity as a function of thickness at {freq} THz\n{self.name} {point} mm")
-        plt.plot(thicknesses*1e6, conductivities.real, label="Conductivity real part")
-        plt.plot(thicknesses*1e6, conductivities.imag, label="Conductivity imaginary part")
+        plt.plot(thicknesses * 1e6, conductivities.real, label="Conductivity real part")
+        plt.plot(thicknesses * 1e6, conductivities.imag, label="Conductivity imaginary part")
         plt.xlabel("Thickness (nm)")
         plt.ylabel("Conductivity (S/m)")
         plt.legend()
@@ -538,21 +540,21 @@ class Image:
         meas_times = [(ref.meas_time - t0).total_seconds() / 3600 for ref in self.refs]
         for i, ref in enumerate(self.refs):
             ref_td = ref.get_data_td()
-            #ref_td = window(ref_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+            # ref_td = window(ref_td, win_len=12, shift=0, en_plot=False, slope=0.05)
             ref_fd = do_fft(ref_td)
-            #ref_fd = phase_correction(ref_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+            # ref_fd = phase_correction(ref_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
 
             ref_ampl_arr.append(np.sum(np.abs(ref_fd[f_idx, 1])) / 1)
             phi = np.angle(ref_fd[f_idx, 1])
             if i and (abs(ref_angle_arr[-1] - phi) > pi):
-                phi -= 2*pi
+                phi -= 2 * pi
             ref_angle_arr.append(phi)
 
         random.seed(10)
         rnd_sam = random.choice(self.sams)
         position1 = (19, 4)
         position2 = (20, 4)
-        sam1 = self.get_measurement(*position1) # rnd_sam
+        sam1 = self.get_measurement(*position1)  # rnd_sam
         sam2 = self.get_measurement(*position2)  # rnd_sam
 
         sam_t1 = (sam1.meas_time - t0).total_seconds() / 3600
@@ -564,16 +566,16 @@ class Image:
         plt.figure("System stability amplitude")
         plt.title("Single frequency reference amplitude")
         plt.plot(meas_times, ref_ampl_arr, label=f"Amplitude at {selected_freq_} THz")
-        #plt.plot(sam_t1, amp_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
-        #plt.plot(sam_t2, amp_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
+        # plt.plot(sam_t1, amp_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
+        # plt.plot(sam_t2, amp_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
         plt.xlabel("Measurement time (hour)")
         plt.ylabel("Amplitude (Arb. u.)")
 
         plt.figure("System stability angle")
         plt.title("Single frequency reference phase")
         plt.plot(meas_times, ref_angle_arr, label=f"Phase at {selected_freq_} THz")
-        #plt.plot(sam_t1, phi_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
-        #plt.plot(sam_t2, phi_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
+        # plt.plot(sam_t1, phi_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
+        # plt.plot(sam_t2, phi_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
         plt.xlabel("Measurement time (hour)")
         plt.ylabel("Phase (rad)")
 
@@ -599,17 +601,17 @@ class Image:
         t = [(ref_before.meas_time - t0).total_seconds(), (ref_after.meas_time - t0).total_seconds()]
         ref_before_td, ref_after_td = ref_before.get_data_td(), ref_after.get_data_td()
 
-        #ref_before_td = window(ref_before_td, win_len=12, shift=0, en_plot=False, slope=0.05)
-        #ref_after_td = window(ref_after_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+        # ref_before_td = window(ref_before_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+        # ref_after_td = window(ref_after_td, win_len=12, shift=0, en_plot=False, slope=0.05)
 
         ref_before_fd, ref_after_fd = do_fft(ref_before_td), do_fft(ref_after_td)
 
-        #ref_before_fd = phase_correction(ref_before_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
-        #ref_after_fd = phase_correction(ref_after_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+        # ref_before_fd = phase_correction(ref_before_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+        # ref_after_fd = phase_correction(ref_after_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
 
-        #if isinstance(selected_freq_, tuple):
+        # if isinstance(selected_freq_, tuple):
 
-        #else:
+        # else:
         f_idx = np.argmin(np.abs(self.freq_axis - selected_freq_))
         y_amp = [np.sum(np.abs(ref_before_fd[f_idx, 1])) / 1,
                  np.sum(np.abs(ref_after_fd[f_idx, 1])) / 1]
@@ -625,7 +627,7 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 0
+    sample_idx = 1
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
@@ -636,25 +638,25 @@ if __name__ == '__main__':
     # sub_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p")
 
     # s1, s2, s3 = [-10, 50, -3, 27]
-    #film_image.plot_cond_vs_d()
-    film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
-    #sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    #film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    #film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=1.200)
+    # film_image.plot_cond_vs_d()
+    # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
+    # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
+    # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
+    # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=1.200)
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
     # sub_image.system_stability(selected_freq_=0.800)
-    # film_image.system_stability(selected_freq_=1.200)
+    film_image.system_stability(selected_freq_=1.200)
 
     # s4 = [18, 51, 0, 20]
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p", selected_freq=1.200)
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="Conductivity", selected_freq=0.600)
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="power", selected_freq=(1.150, 1.250))
 
-    #stability_dir = data_dir / "Stability" / "2023-03-20"
+    # stability_dir = data_dir / "Stability" / "2023-03-20"
 
-    #stability_image = Image(stability_dir)
-    #stability_image.system_stability(selected_freq_=1.200)
+    # stability_image = Image(stability_dir)
+    # stability_image.system_stability(selected_freq_=1.200)
 
     for fig_label in plt.get_figlabels():
         if "Sample" in fig_label:

@@ -1,7 +1,10 @@
 import matplotlib as mpl
 from consts import cur_os, Path
 import matplotlib.pyplot as plt
-#print(mpl.rcParams.keys())
+import matplotlib.font_manager
+print(mpl.rcParams.keys())
+
+# print([f.name for f in matplotlib.font_manager.fontManager.ttflist])
 
 # mpl.rcParams['lines.linestyle'] = '--'
 #mpl.rcParams['legend.fontsize'] = 'large' #'x-large'
@@ -18,6 +21,11 @@ mpl.rcParams['figure.autolayout'] = False
 mpl.rcParams['savefig.format'] = 'pdf'
 mpl.rcParams.update({'font.size': 24})
 
+# Say, "the default sans-serif font is COMIC SANS"
+mpl.rcParams['font.sans-serif'] = 'Liberation Sans'
+# Then, "ALWAYS use sans-serif fonts"
+mpl.rcParams['font.family'] = "sans-serif"
+
 if 'posix' in cur_os:
     result_dir = Path(r"/home/alex/MEGA/AG/Projects/THz Conductivity/IPHT/Results")
 else:
@@ -25,3 +33,13 @@ else:
 mpl.rcParams["savefig.directory"] = result_dir
 
 
+from matplotlib.pyplot import subplots, xlabel, ylabel, grid, show
+fig, ay = subplots()
+
+# Using the specialized math font elsewhere, plus a different font
+xlabel(r"The quick brown fox jumps over the lazy dog", fontsize=18)
+# No math formatting, for comparison
+ylabel(r'Italic and just Arial and not-math-font', fontsize=18)
+grid()
+
+show()
