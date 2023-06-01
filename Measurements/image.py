@@ -24,11 +24,13 @@ class Image:
     all_points = None
     name = ""
 
-    def __init__(self, data_path, sub_image=None):
+    def __init__(self, data_path, sub_image=None, sample_idx=None):
         self.data_path = data_path
         self.sub_image = sub_image
 
         self.refs, self.sams = self._set_measurements()
+        if sample_idx is not None:
+            self.sample_idx = sample_idx
         self.image_info = self._set_info()
         self.image_data = self._image_cache()
 
@@ -54,7 +56,8 @@ class Image:
 
     def _set_info(self):
         parts = self.sams[0].filepath.parts
-        self.sample_idx = sample_names.index(parts[-2])
+        if self.sample_idx is None:
+            self.sample_idx = sample_names.index(parts[-2])
         self.name = f"Sample {self.sample_idx + 1} {parts[-3]}"
 
         sample_data_td = self.sams[0].get_data_td()
@@ -627,13 +630,13 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 1
+    sample_idx = 0
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
 
-    meas_dir = data_dir / "Coated" / sample_names[sample_idx]
-    film_image = Image(data_path=meas_dir, sub_image=sub_image)
+    meas_dir = data_dir / "Edge" / f"s{sample_idx+1}"
+    film_image = Image(data_path=meas_dir, sub_image=sub_image, sample_idx=sample_idx)
 
     # sub_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p")
 
@@ -642,7 +645,7 @@ if __name__ == '__main__':
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=1.200)
+    film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=1.200)
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
     # sub_image.system_stability(selected_freq_=0.800)

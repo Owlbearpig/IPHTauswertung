@@ -164,9 +164,10 @@ if __name__ == '__main__':
     from Measurements.image import Image
 
     sample_idx = 0
-    image_data = data_dir / "Uncoated" / sample_names[sample_idx]
+    image_data = data_dir / "Edge" / sample_names[sample_idx]
     image = Image(image_data)
-    # image.plot_image(quantity="p2p")
+    #image.plot_image(quantity="p2p", img_extent=[-10, 30, 0, 20])
+    image.plot_image(quantity="p2p")
 
     """
     for i in range(4):
@@ -188,7 +189,7 @@ if __name__ == '__main__':
     # eval_point = (33, 11)  # s4
     eval_point = (42, 20)
 
-    n_sub = tmm_eval(sub_image=image, eval_point=eval_point, en_plot=True)
+    # n_sub = tmm_eval(sub_image=image, eval_point=eval_point, en_plot=True)
 
     # np.save(f"n_sub_s{sam_idx + 1}_{eval_point[0]}_{eval_point[1]}.npy", n_sub)
 

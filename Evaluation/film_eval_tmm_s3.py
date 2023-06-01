@@ -211,6 +211,4 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
 if __name__ == '__main__':
     main(sample_idx=0, eval_point=(33.0, 11.0))
 
-
-
     plt.show()

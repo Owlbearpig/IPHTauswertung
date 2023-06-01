@@ -68,10 +68,6 @@ def main():
     plot_system_stability(refs)
 
     plot_absorbance(sam1500_fd, ref_fd, freq_range=(0.25, 3), label=sam_label)
-    
-
-
-
 
     """
     plt.figure("System stability")

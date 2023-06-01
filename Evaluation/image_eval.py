@@ -61,9 +61,6 @@ def main(en_plot=True):
 
     def simple_fit(selected_freq=0.800):
 
-
-
-
         n_opt = np.zeros(len(freqs), dtype=complex)
         for f_idx, freq in enumerate(freqs):
             if freq < 2.0:
