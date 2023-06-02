@@ -2,7 +2,7 @@ import matplotlib as mpl
 from consts import cur_os, Path
 import matplotlib.pyplot as plt
 import matplotlib.font_manager
-print(mpl.rcParams.keys())
+# print(mpl.rcParams.keys())
 
 # print([f.name for f in matplotlib.font_manager.fontManager.ttflist])
 
@@ -32,7 +32,7 @@ else:
     result_dir = Path(r"E:\Mega\AG\Projects\THz Conductivity\IPHT\Results")
 mpl.rcParams["savefig.directory"] = result_dir
 
-
+"""
 from matplotlib.pyplot import subplots, xlabel, ylabel, grid, show
 fig, ay = subplots()
 
@@ -43,3 +43,4 @@ ylabel(r'Italic and just Arial and not-math-font', fontsize=18)
 grid()
 
 show()
+"""

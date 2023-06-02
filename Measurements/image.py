@@ -22,17 +22,38 @@ class Image:
     cache_path = None
     sample_idx = None
     all_points = None
+    options = {}
     name = ""
 
-    def __init__(self, data_path, sub_image=None, sample_idx=None):
+    def __init__(self, data_path, sub_image=None, sample_idx=None, options=None):
         self.data_path = data_path
         self.sub_image = sub_image
 
         self.refs, self.sams = self._set_measurements()
         if sample_idx is not None:
             self.sample_idx = sample_idx
+
         self.image_info = self._set_info()
+        self._set_options(options)
         self.image_data = self._image_cache()
+
+    def _set_options(self, options):
+        if options is None:
+            options = {}
+
+        # set defaults if missing # TODO use default_dict ?
+        if "excluded_area" not in options.keys():
+            options["excluded_area"] = None
+        if "one2onesub" not in self.options.keys():
+            options["one2onesub"] = False
+
+        if "cbar_min" not in self.options.keys():
+            options["cbar_min"] = 0
+        if "cbar_max" not in self.options.keys():
+            options["cbar_max"] = np.inf
+
+        self.options.update(options)
+
 
     def _set_measurements(self):
         all_measurements = get_all_measurements(data_dir_=self.data_path)
@@ -127,10 +148,13 @@ class Image:
         else:
             d_film = kwargs["d_film"]
 
+        """ # calc mean of two layers sample_idx 2
         if self.sample_idx == 2:
             d_list = [inf, d_sub, *d_film, inf]
         else:
             d_list = [inf, d_sub, d_film, inf]
+        """
+        d_list = [inf, d_sub, d_film, inf]
 
         film_td = measurement.get_data_td()
         film_ref_td = self.get_ref(both=False, coords=point)
@@ -156,8 +180,8 @@ class Image:
             n_sub = tmm_eval(self.sub_image, position)
             np.save(ROOT_DIR / "Evaluation" / f"n_sub_s{self.sample_idx + 1}_{position[0]}_{position[1]}.npy", n_sub)
         """
-        one2onesub = True
-        if one2onesub:
+
+        if self.options["one2onesub"]:
             n_sub = tmm_eval(self.sub_image, point, single_f_idx=f_idx)
         else:
             try:
@@ -176,10 +200,13 @@ class Image:
         film_ref_interpol = self._ref_interpolation(measurement, selected_freq_=selected_freq_, ret_cart=True)
 
         def cost(p):
+            """
             if self.sample_idx == 2:
                 n = array([1, n_sub, p[0] + 1j * p[1], p[2] + 1j * p[3], 1])
             else:
                 n = array([1, n_sub, p[0] + 1j * p[1], 1])
+            """
+            n = array([1, n_sub, p[0] + 1j * p[1], 1])
 
             lam_vac = c_thz / freqs[f_idx]
             t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
@@ -203,7 +230,7 @@ class Image:
             res = shgo(cost, bounds=bounds, iters=iters)
             if iters >= 5:
                 break
-
+        """
         if self.sample_idx == 2:
             n_opt = res.x[0] + 1j * res.x[1], res.x[2] + 1j * res.x[3]
             epsilon = n_opt[0] ** 2
@@ -211,6 +238,9 @@ class Image:
         else:
             n_opt = res.x[0] + 1j * res.x[1]
             epsilon = n_opt ** 2
+        """
+        n_opt = res.x[0] + 1j * res.x[1]
+        epsilon = n_opt ** 2
 
         sigma = 1j * (1 - epsilon) * epsilon_0 * omega[f_idx] * THz
 
@@ -246,10 +276,24 @@ class Image:
 
         return grid_vals
 
+    def _is_excluded(self, coords):
+        if self.options["excluded_area"] is None:
+            return False
+        else:
+            area = self.options["excluded_area"]
+
+        is_excluded = (area[0] <= coords[0] <= area[1]) * (area[2] <= coords[1] <= area[3])
+
+        return is_excluded
+
     def _calc_grid_vals(self, quantity="p2p", selected_freq=0.800):
         info = self.image_info
 
-        grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s{self.sample_idx + 1}_121sub_layer1.npy"
+        if self.options["one2onesub"]:
+            grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s{self.sample_idx + 1}_121sub_layer1.npy"
+        else:
+            grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s{self.sample_idx + 1}_layer1.npy"
+
         # grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s{self.sample_idx + 1}_10_10.npy"
 
         if isinstance(selected_freq, tuple) and (quantity in ["MeanConductivity", "ConductivityRange"]):
@@ -262,10 +306,15 @@ class Image:
                 grid_vals = np.zeros((info["w"], info["h"], freq_cnt), dtype=complex)
                 for f_idx, freq in enumerate(self.freq_axis[freq_slice]):
                     for i, measurement in enumerate(self.sams):
+                        pos = measurement.position
                         print(f"{round(100 * i / len(self.sams), 2)} % done, Frequency: {f_idx} / {freq_cnt}. "
-                              f"(Measurement: {i}/{len(self.sams)}, {measurement.position} mm)")
-                        x_idx, y_idx = self._coords_to_idx(*measurement.position)
-                        val = self._eval_conductivity(measurement, freq)
+                              f"(Measurement: {i}/{len(self.sams)}, {pos} mm)")
+                        x_idx, y_idx = self._coords_to_idx(*pos)
+                        if self._is_excluded(pos):
+                            val = 0
+                        else:
+                            val = self._eval_conductivity(measurement, freq)
+
                         grid_vals[x_idx, y_idx, f_idx] = val
 
                 np.save(str(grid_vals_cache_name), grid_vals)
@@ -289,10 +338,14 @@ class Image:
                 grid_vals = self._empty_grid.copy()
 
                 for i, measurement in enumerate(self.sams):
+                    pos = measurement.position
                     print(f"{round(100 * i / len(self.sams), 2)} % done. "
-                          f"(Measurement: {i}/{len(self.sams)}, {measurement.position} mm)")
-                    x_idx, y_idx = self._coords_to_idx(*measurement.position)
-                    val = self._eval_conductivity(measurement, selected_freq)
+                          f"(Measurement: {i}/{len(self.sams)}, {pos} mm)")
+                    if self._is_excluded(pos):
+                        val = 0
+                    else:
+                        val = self._eval_conductivity(measurement, selected_freq)
+                    x_idx, y_idx = self._coords_to_idx(*pos)
                     grid_vals[x_idx, y_idx] = val
 
                 np.save(str(grid_vals_cache_name), grid_vals)
@@ -355,7 +408,7 @@ class Image:
         plt.legend()
         plt.show()
 
-    def plot_image(self, selected_freq=None, quantity="p2p", img_extent=None):
+    def plot_image(self, selected_freq=None, quantity="p2p", img_extent=None, excluded=None):
         if quantity.lower() == "p2p":
             label = ""
         elif quantity.lower() == "conductivity":
@@ -371,8 +424,6 @@ class Image:
         else:
             label = " (S/m)"
 
-        grid_vals = self._calc_grid_vals(quantity=quantity, selected_freq=selected_freq)
-
         info = self.image_info
         if img_extent is None:
             w0, w1, h0, h1 = [0, info["w"], 0, info["h"]]
@@ -380,6 +431,8 @@ class Image:
             dx, dy = info["dx"], info["dy"]
             w0, w1 = int((img_extent[0] - info["extent"][0]) / dx), int((img_extent[1] - info["extent"][0]) / dx)
             h0, h1 = int((img_extent[2] - info["extent"][2]) / dy), int((img_extent[3] - info["extent"][2]) / dy)
+
+        grid_vals = self._calc_grid_vals(quantity=quantity, selected_freq=selected_freq)
 
         grid_vals = grid_vals[w0:w1, h0:h1]
 
@@ -390,9 +443,14 @@ class Image:
 
         if img_extent is None:
             img_extent = self.image_info["extent"]
+        cbar_min = np.min(grid_vals[grid_vals > self.options["cbar_min"]])
+        cbar_max = np.max(grid_vals[grid_vals < self.options["cbar_max"]])
+
+        #grid_vals[grid_vals < self.options["cbar_min"]] = 0
+        #grid_vals[grid_vals > self.options["cbar_max"]] = 0
 
         img = ax.imshow(grid_vals.transpose((1, 0)),
-                        vmin=np.min(grid_vals), vmax=np.max(grid_vals),
+                        vmin=cbar_min, vmax=cbar_max,
                         origin="lower",
                         cmap=plt.get_cmap('jet'),
                         extent=img_extent)
@@ -630,14 +688,17 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 0
+    sample_idx = 3
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
 
     meas_dir = data_dir / "Edge" / f"s{sample_idx+1}"
-    film_image = Image(data_path=meas_dir, sub_image=sub_image, sample_idx=sample_idx)
+    #options = {"excluded_area": [3, 14, -10, 30], "one2onesub": False, "cbar_min": 1.6e5, "cbar_max": 3.6e5}
+    options = {"cbar_min": 1.9e5, "cbar_max": 3.0e5}
+    # options = None
 
+    film_image = Image(data_path=meas_dir, sub_image=sub_image, sample_idx=sample_idx, options=options)
     # sub_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p")
 
     # s1, s2, s3 = [-10, 50, -3, 27]
@@ -645,15 +706,19 @@ if __name__ == '__main__':
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=1.200)
+    # film_image.plot_image(img_extent=[-10, 50, 0, 27], quantity="Conductivity", selected_freq=1.200)
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
     # sub_image.system_stability(selected_freq_=0.800)
-    film_image.system_stability(selected_freq_=1.200)
+    # film_image.system_stability(selected_freq_=1.200)
 
     # s4 = [18, 51, 0, 20]
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p", selected_freq=1.200)
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="Conductivity", selected_freq=0.600)
+
+    # film_image.plot_image(img_extent=[-5, 36, 0, 12], quantity="Conductivity", selected_freq=1.200)
+    film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
+
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="power", selected_freq=(1.150, 1.250))
 
     # stability_dir = data_dir / "Stability" / "2023-03-20"
