@@ -42,8 +42,8 @@ class Image:
             options = {}
 
         # set defaults if missing # TODO use default_dict ?
-        if "excluded_area" not in options.keys():
-            options["excluded_area"] = None
+        if "excluded_areas" not in options.keys():
+            options["excluded_areas"] = None
         if "one2onesub" not in self.options.keys():
             options["one2onesub"] = False
 
@@ -139,6 +139,13 @@ class Image:
         y_idx = int((y - self.image_info["extent"][2]) / self.image_info["dy"])
 
         return x_idx, y_idx
+
+    def _idx_to_coords(self, x_idx, y_idx):
+        dx, dy = self.image_info["dx"], self.image_info["dy"]
+        y = self.image_info["extent"][2] + y_idx * dy
+        x = self.image_info["extent"][0] + x_idx * dx
+
+        return x, y
 
     def _eval_conductivity(self, measurement, selected_freq_, **kwargs):
         point = measurement.position
@@ -276,15 +283,21 @@ class Image:
 
         return grid_vals
 
-    def _is_excluded(self, coords):
-        if self.options["excluded_area"] is None:
+    def _is_excluded(self, idx_tuple):
+        if self.options["excluded_areas"] is None:
             return False
+
+        if np.array(self.options["excluded_areas"]).ndim == 1:
+            areas = [self.options["excluded_areas"]]
         else:
-            area = self.options["excluded_area"]
+            areas = self.options["excluded_areas"]
 
-        is_excluded = (area[0] <= coords[0] <= area[1]) * (area[2] <= coords[1] <= area[3])
+        for area in areas:
+            x, y = self._idx_to_coords(*idx_tuple)
+            if (area[0] <= x <= area[1]) * (area[2] <= y <= area[3]):
+                return True
 
-        return is_excluded
+        return False
 
     def _calc_grid_vals(self, quantity="p2p", selected_freq=0.800):
         info = self.image_info
@@ -310,10 +323,7 @@ class Image:
                         print(f"{round(100 * i / len(self.sams), 2)} % done, Frequency: {f_idx} / {freq_cnt}. "
                               f"(Measurement: {i}/{len(self.sams)}, {pos} mm)")
                         x_idx, y_idx = self._coords_to_idx(*pos)
-                        if self._is_excluded(pos):
-                            val = 0
-                        else:
-                            val = self._eval_conductivity(measurement, freq)
+                        val = self._eval_conductivity(measurement, freq)
 
                         grid_vals[x_idx, y_idx, f_idx] = val
 
@@ -341,10 +351,7 @@ class Image:
                     pos = measurement.position
                     print(f"{round(100 * i / len(self.sams), 2)} % done. "
                           f"(Measurement: {i}/{len(self.sams)}, {pos} mm)")
-                    if self._is_excluded(pos):
-                        val = 0
-                    else:
-                        val = self._eval_conductivity(measurement, selected_freq)
+                    val = self._eval_conductivity(measurement, selected_freq)
                     x_idx, y_idx = self._coords_to_idx(*pos)
                     grid_vals[x_idx, y_idx] = val
 
@@ -408,7 +415,44 @@ class Image:
         plt.legend()
         plt.show()
 
-    def plot_image(self, selected_freq=None, quantity="p2p", img_extent=None, excluded=None):
+    def _exclude_pixels(self, grid_vals):
+        filtered_grid = grid_vals.copy()
+        dims = filtered_grid.shape
+        for x_idx in range(dims[0]):
+            for y_idx in range(dims[1]):
+                if self._is_excluded((x_idx, y_idx)):
+                    filtered_grid[x_idx, y_idx] = 0
+
+        return filtered_grid
+
+    def _mirror_image(self, grid_vals):
+        # should flip horizontal axis around center
+        grid_vals_mirrored = grid_vals.copy()
+
+        w = grid_vals.shape[0] - 1
+        for x_idx in range(grid_vals.shape[0]):
+            grid_vals_mirrored[w-x_idx, :] = grid_vals[x_idx, :]
+
+        return grid_vals_mirrored
+
+    def _smoothen_(self, grid_vals):
+        return grid_vals
+        # TODO
+        grid_vals_smooth = grid_vals.copy()
+        w, h = grid_vals.shape
+
+        for x_idx in range(w):
+            for y_idx in range(h):
+                try:
+                    if np.sum(grid_vals[x_idx-1:x_idx+1, y_idx-1:y_idx+1]) > 4 * 1e6:
+                        grid_vals_smooth[x_idx:y_idx] = 1e6
+                except IndexError as e:
+                    print(e)
+                    continue
+
+        return grid_vals_smooth
+
+    def plot_image(self, selected_freq=None, quantity="p2p", img_extent=None, flip_x=False):
         if quantity.lower() == "p2p":
             label = ""
         elif quantity.lower() == "conductivity":
@@ -435,6 +479,15 @@ class Image:
         grid_vals = self._calc_grid_vals(quantity=quantity, selected_freq=selected_freq)
 
         grid_vals = grid_vals[w0:w1, h0:h1]
+
+        grid_vals = np.log10(grid_vals)
+
+        grid_vals = self._exclude_pixels(grid_vals)
+
+        if flip_x:
+            grid_vals = self._mirror_image(grid_vals)
+
+        grid_vals = self._smoothen_(grid_vals)
 
         fig = plt.figure(f"{self.name} {sample_labels[self.sample_idx]}")
         ax = fig.add_subplot(111)
@@ -688,19 +741,29 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 3
+    sample_idx = 1
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
 
     meas_dir = data_dir / "Edge" / f"s{sample_idx+1}"
-    #options = {"excluded_area": [3, 14, -10, 30], "one2onesub": False, "cbar_min": 1.6e5, "cbar_max": 3.6e5}
-    options = {"cbar_min": 1.9e5, "cbar_max": 3.0e5}
-    # options = None
+    # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
+    options = {"excluded_areas": [[-10, 55, 12, 30],
+                                  [-10, -6, -10, 30],
+                                  [37, 55, -10, 30],]}
+    options = {"excluded_areas": [[-12, -6, -4, 30],
+                                  [-10, 55, 13, 30],
+                                  [36, 55, -4, 30], ]}
+    options = {}
+    #options.update({"cbar_min": 1.5e5, "cbar_max": 3.0e5})
+    # options.update({"cbar_min": 1.0e6, "cbar_max": 6.5e6})  # s1
+    #options.update({"cbar_min": -1.5, "cbar_max": 1.5})
+    options.update({"cbar_min": 1.05, "cbar_max": 1.15})
 
-    film_image = Image(data_path=meas_dir, sub_image=sub_image, sample_idx=sample_idx, options=options)
+
+    film_image = Image(meas_dir, sub_image, sample_idx, options)
     # sub_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p")
-
+    film_image.plot_image(quantity="p2p", flip_x=True)
     # s1, s2, s3 = [-10, 50, -3, 27]
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
@@ -717,7 +780,7 @@ if __name__ == '__main__':
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="Conductivity", selected_freq=0.600)
 
     # film_image.plot_image(img_extent=[-5, 36, 0, 12], quantity="Conductivity", selected_freq=1.200)
-    film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
+    #film_image.plot_image(quantity="Conductivity", selected_freq=1.200, flip_x=True)
 
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="power", selected_freq=(1.150, 1.250))
 
