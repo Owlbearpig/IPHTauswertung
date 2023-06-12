@@ -54,7 +54,6 @@ class Image:
 
         self.options.update(options)
 
-
     def _set_measurements(self):
         all_measurements = get_all_measurements(data_dir_=self.data_path)
         refs, sams = self._filter_measurements(all_measurements)
@@ -431,7 +430,7 @@ class Image:
 
         w = grid_vals.shape[0] - 1
         for x_idx in range(grid_vals.shape[0]):
-            grid_vals_mirrored[w-x_idx, :] = grid_vals[x_idx, :]
+            grid_vals_mirrored[w - x_idx, :] = grid_vals[x_idx, :]
 
         return grid_vals_mirrored
 
@@ -444,7 +443,7 @@ class Image:
         for x_idx in range(w):
             for y_idx in range(h):
                 try:
-                    if np.sum(grid_vals[x_idx-1:x_idx+1, y_idx-1:y_idx+1]) > 4 * 1e6:
+                    if np.sum(grid_vals[x_idx - 1:x_idx + 1, y_idx - 1:y_idx + 1]) > 4 * 1e6:
                         grid_vals_smooth[x_idx:y_idx] = 1e6
                 except IndexError as e:
                     print(e)
@@ -480,9 +479,9 @@ class Image:
 
         grid_vals = grid_vals[w0:w1, h0:h1]
 
-        grid_vals = np.log10(grid_vals)
-
         grid_vals = self._exclude_pixels(grid_vals)
+
+        grid_vals = np.log10(grid_vals)
 
         if flip_x:
             grid_vals = self._mirror_image(grid_vals)
@@ -499,13 +498,15 @@ class Image:
         cbar_min = np.min(grid_vals[grid_vals > self.options["cbar_min"]])
         cbar_max = np.max(grid_vals[grid_vals < self.options["cbar_max"]])
 
-        #grid_vals[grid_vals < self.options["cbar_min"]] = 0
-        #grid_vals[grid_vals > self.options["cbar_max"]] = 0
+        # grid_vals[grid_vals < self.options["cbar_min"]] = 0
+        # grid_vals[grid_vals > self.options["cbar_max"]] = 0
 
         img = ax.imshow(grid_vals.transpose((1, 0)),
                         vmin=cbar_min, vmax=cbar_max,
                         origin="lower",
-                        cmap=plt.get_cmap('jet'),
+                        # cmap=plt.get_cmap('jet'),
+                        # cmap=plt.get_cmap('gray'),
+                        cmap=plt.get_cmap('autumn'),
                         extent=img_extent)
 
         ax.set_xlabel("x (mm)")
@@ -516,8 +517,13 @@ class Image:
             b = int(b)
             return r'${} \times 10^{{{}}}$'.format(a, b)
 
-        cbar = fig.colorbar(img, format=ticker.FuncFormatter(fmt))
-        cbar.set_label(f"{quantity}" + label, rotation=270, labelpad=30)
+        # cbar = fig.colorbar(img, format=ticker.FuncFormatter(fmt))
+        cbar = fig.colorbar(img)
+        if quantity.lower() == "conductivity":
+            label = " at " + str(np.round(selected_freq, 3)) + " THz"
+            cbar.set_label("$\log_{10}$($\sigma$) (MS/m)" + label, rotation=270, labelpad=30)
+        else:
+            cbar.set_label(f"{quantity}" + label, rotation=270, labelpad=30)
 
     def get_measurement(self, x, y):
         closest_sam, best_fit_val = None, np.inf
@@ -739,6 +745,17 @@ class Image:
         else:
             return amp_interpol, phi_interpol
 
+    def average_area(self):
+        s = 3.5
+        arrow_len = 3 * s
+        arrow_height = 0  # self.image_info["dy"] assume single pixel
+        x0, y0 = 34, 15
+        x1, y1 = x0 + arrow_len, y0 + arrow_height
+        area_coords = []
+        area_idx = [self._coords_to_idx()]
+
+
+
 
 if __name__ == '__main__':
     sample_idx = 1
@@ -746,30 +763,38 @@ if __name__ == '__main__':
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
 
-    meas_dir = data_dir / "Edge" / f"s{sample_idx+1}"
+    meas_dir = data_dir / "Edge" / sample_names[sample_idx]
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
                                   [-10, -6, -10, 30],
-                                  [37, 55, -10, 30],]}
-    options = {"excluded_areas": [[-12, -6, -4, 30],
-                                  [-10, 55, 13, 30],
-                                  [36, 55, -4, 30], ]}
+                                  [37, 55, -10, 30], ]}
+    options = {"excluded_areas": [[33, 60, -4, 30],  # s1, s2, s3
+                                  [3, 11, -4, 30],
+                                  # [36, 55, -4, 30],
+                                  ]}
+    """
+    options = {"excluded_areas": [  # s4
+        [-13, 60, 13, 30],
+        [-10, -5, -5, 30],
+        [37, 60, -5, 30]
+    ]}
+    """
     options = {}
-    #options.update({"cbar_min": 1.5e5, "cbar_max": 3.0e5})
+    # options.update({"cbar_min": 1.5e5, "cbar_max": 3.0e5})
     # options.update({"cbar_min": 1.0e6, "cbar_max": 6.5e6})  # s1
-    #options.update({"cbar_min": -1.5, "cbar_max": 1.5})
-    options.update({"cbar_min": 1.05, "cbar_max": 1.15})
-
+    # options.update({"cbar_min": -1.5, "cbar_max": 1.5})
+    # options.update({"cbar_min": 1.05, "cbar_max": 1.15})
+    # options.update({"cbar_min": 4, "cbar_max": 7})
 
     film_image = Image(meas_dir, sub_image, sample_idx, options)
     # sub_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p")
-    film_image.plot_image(quantity="p2p", flip_x=True)
+    # film_image.plot_image(quantity="p2p", flip_x=False)
     # s1, s2, s3 = [-10, 50, -3, 27]
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    # film_image.plot_image(img_extent=[-10, 50, 0, 27], quantity="Conductivity", selected_freq=1.200)
+    film_image.plot_image(quantity="p2p")
+    #film_image.plot_image(quantity="Conductivity", selected_freq=1.200, flip_x=True)
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
     # sub_image.system_stability(selected_freq_=0.800)
@@ -780,7 +805,7 @@ if __name__ == '__main__':
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="Conductivity", selected_freq=0.600)
 
     # film_image.plot_image(img_extent=[-5, 36, 0, 12], quantity="Conductivity", selected_freq=1.200)
-    #film_image.plot_image(quantity="Conductivity", selected_freq=1.200, flip_x=True)
+    # film_image.plot_image(quantity="Conductivity", selected_freq=1.200, flip_x=True)
 
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="power", selected_freq=(1.150, 1.250))
 
