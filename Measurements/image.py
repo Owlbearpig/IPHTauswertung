@@ -2,7 +2,7 @@ import itertools
 import random
 import re
 import timeit
-
+from itertools import product
 from consts import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -298,7 +298,7 @@ class Image:
 
         return False
 
-    def _calc_grid_vals(self, quantity="p2p", selected_freq=0.800):
+    def _calc_grid_vals(self, quantity="p2p", selected_freq=1.200):
         info = self.image_info
 
         if self.options["one2onesub"]:
@@ -508,7 +508,7 @@ class Image:
                         # cmap=plt.get_cmap('gray'),
                         cmap=plt.get_cmap('autumn'),
                         extent=img_extent)
-
+        ax.invert_xaxis()
         ax.set_xlabel("x (mm)")
         ax.set_ylabel("y (mm)")
 
@@ -745,20 +745,92 @@ class Image:
         else:
             return amp_interpol, phi_interpol
 
-    def average_area(self):
-        s = 3.5
+    def _4pp_measurement(self, s_idx=0):
+        s1 = array([6.49, 6.40, 6.40, 6.64, 6.38, 6.29, 6.38, 6.47, 6.29, 6.22]) * 1e5
+        s4 = array([1.09, 1.46, 1.26, 0.81, 1.28, 1.30]) * 1e4
+
+        if s_idx == 0:
+            return s1[:7]
+        else:
+            return s4
+
+    def _average_area(self, pr=None):
+        if pr is None:
+            pr = (33, 15)  # point upper right (mm)
+
+        s = 3.5  # mm
         arrow_len = 3 * s
-        arrow_height = 0  # self.image_info["dy"] assume single pixel
-        x0, y0 = 34, 15
-        x1, y1 = x0 + arrow_len, y0 + arrow_height
-        area_coords = []
-        area_idx = [self._coords_to_idx()]
+        arrow_height = 0  # self.image_info["dy"] assume single pixel, mm
+        pl = pr[0] - arrow_len, pr[1] - arrow_height  # point lower left
+        # print(pl, pr)
 
+        bottom_left, top_right = self._coords_to_idx(*pl), self._coords_to_idx(*pr)
+        x_range = range(bottom_left[0], top_right[0]+1)
+        y_range = range(bottom_left[1], top_right[1]+1)
+        area_indices = list(product(x_range, y_range))
 
+        # print(bottom_left, top_right)
+        # print(area_indices)
+
+        grid_vals = self._calc_grid_vals(quantity="Conductivity")
+        conductivities = [grid_vals[p] for p in area_indices]
+        print(conductivities)
+        avg_val = np.sum(conductivities) / len(conductivities)
+        print(avg_val)
+
+        return avg_val
+
+    def thz_vs_4pp(self):
+        def scale(val, dst=None):
+            """
+            Scale the given value to the scale of dst.
+            """
+            val = array(val)
+            if dst is None:
+                dst = (0, 1)
+            src = np.min(val), np.max(val)
+
+            return ((val - src[0]) / (src[1] - src[0])) * (dst[1] - dst[0]) + dst[0]
+
+        pr_s1 = (33, 15)
+        pr_s4_13 = (2, 13)
+        pr_s4_46 = (30, 12)
+
+        cond_vals = []
+        for i in range(3):
+            # pr = (pr0[0] - i*10.5/2, pr0[1])
+            pr = (pr_s4_13[0], pr_s4_13[1] - i * 10.5 / 2)
+            print(pr)
+            avg_val = self._average_area(pr)
+            cond_vals.append(avg_val)
+
+        for i in range(3):
+            # pr = (pr0[0] - i*10.5/2, pr0[1])
+            pr = (pr_s4_46[0], pr_s4_46[1] - i * 10.5 / 2)
+            print(pr)
+            avg_val = self._average_area(pr)
+            cond_vals.append(avg_val)
+
+        # avg_val = self._average_area((4.2, 15))
+        # cond_vals.append(avg_val)
+        # positions = [0, 1, 2, 6]
+        positions = [1, 2, 3, 4, 5, 6]
+
+        cond_vals = scale(cond_vals)
+
+        plt.figure("4pp")
+        plt.plot(positions, cond_vals, label="THz conductivity")
+
+        _4pp_val = self._4pp_measurement(s_idx=self.sample_idx)
+        _4pp_val_scaled = scale(_4pp_val)
+
+        plt.plot(range(1, len(_4pp_val_scaled)+1), _4pp_val_scaled, label="4pp")
+        plt.ylabel("Conductivity (Normalized)")  # TODO map to range (0, 1)
+        plt.xlabel("Position idx")
 
 
 if __name__ == '__main__':
-    sample_idx = 1
+    sample_idx = 0
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
@@ -793,10 +865,10 @@ if __name__ == '__main__':
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    film_image.plot_image(quantity="p2p")
-    #film_image.plot_image(quantity="Conductivity", selected_freq=1.200, flip_x=True)
+    # film_image.plot_image(quantity="p2p")
+    film_image.plot_image(quantity="Conductivity", selected_freq=1.200, flip_x=False)
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
-
+    film_image.thz_vs_4pp()
     # sub_image.system_stability(selected_freq_=0.800)
     # film_image.system_stability(selected_freq_=1.200)
 
