@@ -52,6 +52,17 @@ class Image:
         if "cbar_max" not in self.options.keys():
             options["cbar_max"] = np.inf
 
+        if "log_scale" not in self.options.keys():
+            options["log_scale"] = False
+
+        if "color_map" not in self.options.keys():
+            options["color_map"] = "autumn"
+
+        if "invert_x" not in self.options.keys():
+            options["invert_x"] = False
+        if "invert_y" not in self.options.keys():
+            options["invert_y"] = False
+
         self.options.update(options)
 
     def _set_measurements(self):
@@ -481,7 +492,8 @@ class Image:
 
         grid_vals = self._exclude_pixels(grid_vals)
 
-        grid_vals = np.log10(grid_vals)
+        if self.options["log_scale"]:
+            grid_vals = np.log10(grid_vals)
 
         if flip_x:
             grid_vals = self._mirror_image(grid_vals)
@@ -504,11 +516,13 @@ class Image:
         img = ax.imshow(grid_vals.transpose((1, 0)),
                         vmin=cbar_min, vmax=cbar_max,
                         origin="lower",
-                        # cmap=plt.get_cmap('jet'),
-                        # cmap=plt.get_cmap('gray'),
-                        cmap=plt.get_cmap('autumn'),
+                        cmap=plt.get_cmap(self.options["color_map"]),
                         extent=img_extent)
-        ax.invert_xaxis()
+        if self.options["invert_x"]:
+            ax.invert_xaxis()
+        if self.options["invert_y"]:
+            ax.invert_yaxis()
+
         ax.set_xlabel("x (mm)")
         ax.set_ylabel("y (mm)")
 
@@ -745,97 +759,116 @@ class Image:
         else:
             return amp_interpol, phi_interpol
 
-    def _4pp_measurement(self, s_idx=0):
-        s1 = array([6.49, 6.40, 6.40, 6.64, 6.38, 6.29, 6.38, 6.47, 6.29, 6.22]) * 1e5
-        s4 = array([1.09, 1.46, 1.26, 0.81, 1.28, 1.30]) * 1e4
+    def _4pp_measurement(self, s_idx=0, row_id=None):
+        if row_id is None:
+            s1 = array([6.49, 6.40, 6.40, 6.64, 6.38, 6.29, 6.38, 6.47, 6.29, 6.22]) * 1e5
+            s4 = array([1.09, 1.46, 1.26, 0.81, 1.28, 1.30]) * 1e4
+            map_ = {"0": s1, "3": s4}
 
-        if s_idx == 0:
-            return s1[:7]
-        else:
-            return s4
+            return map_[str(s_idx)]
 
-    def _average_area(self, pr=None):
-        if pr is None:
-            pr = (33, 15)  # point upper right (mm)
+        s2_r2 = array([1.13, 3.09, 7.35, 4.56, 22.6, 2.31, 7.82, 10.9, 13.3, 10.4, 9.13,
+                       9.57, 8.54, 10.1, 4.69, 0.682, 12.9, 10.3, 10.7, 10.7, 9.06, 0.937, 0.421]) * 1e3
+        s4_r3 = array([2.08, 2.64, 5.44, 3.43, 6.51, 16.6, 10.8, 11.5, 12.7, 9.5, 6.29]) * 1e4
 
-        s = 3.5  # mm
-        arrow_len = 3 * s
+        map_ = {"s2_r2": s2_r2, "s4_r3": s4_r3}
+
+        return map_[f"s{s_idx+1}_r{row_id}"]
+
+    def _average_area(self, p0=None, line_len=None):
+        if p0 is None:
+            p0 = (33, 15)  # point upper right (mm)
+
+        if line_len is None:
+            s = 3.5  # mm
+            line_len = 3 * s
+
         arrow_height = 0  # self.image_info["dy"] assume single pixel, mm
-        pl = pr[0] - arrow_len, pr[1] - arrow_height  # point lower left
-        # print(pl, pr)
+        p1 = p0[0] - line_len, p0[1] - arrow_height  # second point of arrow
+        print(f"segment: {p0}, {p1}")
+        # convert to idx. Direction of the line doesn't matter
+        p1_idx, p0_idx = self._coords_to_idx(*p1), self._coords_to_idx(*p0)
+        min_x, max_x = min(p1_idx[0], p0_idx[0]), max(p1_idx[0], p0_idx[0])
+        min_y, max_y = min(p1_idx[1], p0_idx[1]), max(p1_idx[1], p0_idx[1])
 
-        bottom_left, top_right = self._coords_to_idx(*pl), self._coords_to_idx(*pr)
-        x_range = range(bottom_left[0], top_right[0]+1)
-        y_range = range(bottom_left[1], top_right[1]+1)
+        x_range = range(min_x, max_x+1)
+        y_range = range(min_y, max_y+1)
         area_indices = list(product(x_range, y_range))
-
-        # print(bottom_left, top_right)
-        # print(area_indices)
 
         grid_vals = self._calc_grid_vals(quantity="Conductivity")
         conductivities = [grid_vals[p] for p in area_indices]
         print(conductivities)
         avg_val = np.sum(conductivities) / len(conductivities)
-        print(avg_val)
+        print(avg_val, "\n")
 
         return avg_val
 
-    def thz_vs_4pp(self):
+    def thz_vs_4pp(self, row_idx):
         def scale(val, dst=None):
             """
             Scale the given value to the scale of dst.
             """
             val = array(val)
+
+            return np.log10(val)
+
             if dst is None:
                 dst = (0, 1)
             src = np.min(val), np.max(val)
 
             return ((val - src[0]) / (src[1] - src[0])) * (dst[1] - dst[0]) + dst[0]
 
+        _4pp_vals = self._4pp_measurement(s_idx=self.sample_idx, row_id=row_idx)
+        _4pp_val_scaled = scale(_4pp_vals)
+
+        # line_len = 3.5 # s4
+        line_len = 4 # s2
+        # line_len = 3
+        segment_cnt = len(_4pp_vals)
+
         pr_s1 = (33, 15)
         pr_s4_13 = (2, 13)
         pr_s4_46 = (30, 12)
+        pr_s4_r3 = (35, 7)
+        p0_s2_r2 = (44, 15)
 
         cond_vals = []
-        for i in range(3):
-            # pr = (pr0[0] - i*10.5/2, pr0[1])
-            pr = (pr_s4_13[0], pr_s4_13[1] - i * 10.5 / 2)
-            print(pr)
-            avg_val = self._average_area(pr)
+        for i in range(segment_cnt):
+            pr = (p0_s2_r2[0] - i * line_len, p0_s2_r2[1])
+            avg_val = self._average_area(pr, line_len)
             cond_vals.append(avg_val)
-
+        """
         for i in range(3):
             # pr = (pr0[0] - i*10.5/2, pr0[1])
             pr = (pr_s4_46[0], pr_s4_46[1] - i * 10.5 / 2)
             print(pr)
-            avg_val = self._average_area(pr)
+            avg_val = self._average_area(pr, line_len)
             cond_vals.append(avg_val)
-
+        
         # avg_val = self._average_area((4.2, 15))
         # cond_vals.append(avg_val)
         # positions = [0, 1, 2, 6]
-        positions = [1, 2, 3, 4, 5, 6]
+        # positions = [1, 2, 3, 4, 5, 6]
+        """
 
+        positions = range(1, segment_cnt+1)
         cond_vals = scale(cond_vals)
 
         plt.figure("4pp")
         plt.plot(positions, cond_vals, label="THz conductivity")
-
-        _4pp_val = self._4pp_measurement(s_idx=self.sample_idx)
-        _4pp_val_scaled = scale(_4pp_val)
-
-        plt.plot(range(1, len(_4pp_val_scaled)+1), _4pp_val_scaled, label="4pp")
-        plt.ylabel("Conductivity (Normalized)")  # TODO map to range (0, 1)
+        plt.plot(positions, _4pp_val_scaled, label="4pp")
+        plt.ylabel("Conductivity (Normalized)")
         plt.xlabel("Position idx")
 
 
 if __name__ == '__main__':
-    sample_idx = 0
+    sample_idx = 1
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
 
-    meas_dir = data_dir / "Edge" / sample_names[sample_idx]
+    #meas_dir = data_dir / "Edge" / sample_names[sample_idx]
+    meas_dir = data_dir / "Edge_4pp2" / sample_names[sample_idx]
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
                                   [-10, -6, -10, 30],
@@ -851,7 +884,9 @@ if __name__ == '__main__':
         [37, 60, -5, 30]
     ]}
     """
-    options = {}
+    options = {"cbar_min": 4.2, "cbar_max": 5.0, "log_scale": True, "color_map": "viridis",
+               "invert_x": True, "invert_y": False}
+    #options = {}
     # options.update({"cbar_min": 1.5e5, "cbar_max": 3.0e5})
     # options.update({"cbar_min": 1.0e6, "cbar_max": 6.5e6})  # s1
     # options.update({"cbar_min": -1.5, "cbar_max": 1.5})
@@ -866,9 +901,9 @@ if __name__ == '__main__':
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
     # film_image.plot_image(quantity="p2p")
-    film_image.plot_image(quantity="Conductivity", selected_freq=1.200, flip_x=False)
+    film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
-    film_image.thz_vs_4pp()
+    film_image.thz_vs_4pp(row_idx=2)
     # sub_image.system_stability(selected_freq_=0.800)
     # film_image.system_stability(selected_freq_=1.200)
 
