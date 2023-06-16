@@ -214,7 +214,7 @@ class Image:
         print(f"Substrate refractive index: {np.round(n_sub, 3)}")
 
         phase_shift = np.exp(-1j * (d_sub + np.sum(d_film)) * omega / c_thz)
-        film_ref_interpol = self._ref_interpolation(measurement, selected_freq_=selected_freq_, ret_cart=True)
+        # film_ref_interpol = self._ref_interpolation(measurement, selected_freq_=selected_freq_, ret_cart=True)
 
         def cost(p):
             """
@@ -769,9 +769,9 @@ class Image:
 
         s2_r2 = array([1.13, 3.09, 7.35, 4.56, 22.6, 2.31, 7.82, 10.9, 13.3, 10.4, 9.13,
                        9.57, 8.54, 10.1, 4.69, 0.682, 12.9, 10.3, 10.7, 10.7, 9.06, 0.937, 0.421]) * 1e3
-        s4_r3 = array([2.08, 2.64, 5.44, 3.43, 6.51, 16.6, 10.8, 11.5, 12.7, 9.5, 6.29]) * 1e4
+        s4_r3 = array([2.08, 5.64, 5.44, 3.43, 6.51, 16.6, 10.8, 11.5, 12.7, 9.5, 6.29]) * 1e4
 
-        map_ = {"s2_r2": s2_r2, "s4_r3": s4_r3}
+        map_ = {"s2_r2": s2_r2[:11], "s4_r3": s4_r3}
 
         return map_[f"s{s_idx+1}_r{row_id}"]
 
@@ -809,32 +809,34 @@ class Image:
             Scale the given value to the scale of dst.
             """
             val = array(val)
-
-            return np.log10(val)
+            # return val
+            # return np.log10(val)
 
             if dst is None:
                 dst = (0, 1)
             src = np.min(val), np.max(val)
-
+            return val / np.max(val)
             return ((val - src[0]) / (src[1] - src[0])) * (dst[1] - dst[0]) + dst[0]
 
         _4pp_vals = self._4pp_measurement(s_idx=self.sample_idx, row_id=row_idx)
         _4pp_val_scaled = scale(_4pp_vals)
 
-        # line_len = 3.5 # s4
-        line_len = 4 # s2
+        line_len = 3.5  # s4
+        # line_len = 3.75  # s2
         # line_len = 3
         segment_cnt = len(_4pp_vals)
 
         pr_s1 = (33, 15)
         pr_s4_13 = (2, 13)
         pr_s4_46 = (30, 12)
-        pr_s4_r3 = (35, 7)
-        p0_s2_r2 = (44, 15)
+        pr_s4_r3 = (37, 6)  # best
+        # pr_s4_r3 = (37, 8)
+        #p0_s2_r2 = (44, 10.5)
+        #p0_s2_r2 = (44, 15.5)
 
         cond_vals = []
         for i in range(segment_cnt):
-            pr = (p0_s2_r2[0] - i * line_len, p0_s2_r2[1])
+            pr = (pr_s4_r3[0] - i * line_len, pr_s4_r3[1])
             avg_val = self._average_area(pr, line_len)
             cond_vals.append(avg_val)
         """
@@ -862,12 +864,14 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 1
+    sample_idx = 3
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
 
     #meas_dir = data_dir / "Edge" / sample_names[sample_idx]
+    # meas_dir = data_dir / "Edge_4pp2_flipped" / (sample_names[sample_idx] + "_accident")
+    # meas_dir = data_dir / "Edge_4pp2_flipped" / sample_names[sample_idx]
     meas_dir = data_dir / "Edge_4pp2" / sample_names[sample_idx]
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
@@ -883,10 +887,10 @@ if __name__ == '__main__':
         [-10, -5, -5, 30],
         [37, 60, -5, 30]
     ]}
-    """
-    options = {"cbar_min": 4.2, "cbar_max": 5.0, "log_scale": True, "color_map": "viridis",
-               "invert_x": True, "invert_y": False}
-    #options = {}
+    """ # 1.60*1e4, 1.74*1e4
+    options = {"cbar_min": 0, "cbar_max": np.inf, "log_scale": False, "color_map": "viridis",
+               "invert_x": True, "invert_y": True}
+    # options = {}
     # options.update({"cbar_min": 1.5e5, "cbar_max": 3.0e5})
     # options.update({"cbar_min": 1.0e6, "cbar_max": 6.5e6})  # s1
     # options.update({"cbar_min": -1.5, "cbar_max": 1.5})
@@ -901,9 +905,9 @@ if __name__ == '__main__':
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
     # film_image.plot_image(quantity="p2p")
-    film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
+    # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
-    film_image.thz_vs_4pp(row_idx=2)
+    film_image.thz_vs_4pp(row_idx=3)
     # sub_image.system_stability(selected_freq_=0.800)
     # film_image.system_stability(selected_freq_=1.200)
 
