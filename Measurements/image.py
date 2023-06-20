@@ -5,8 +5,8 @@ import timeit
 from itertools import product
 from consts import *
 import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from mpl_settings import *
 from functions import do_fft, do_ifft, phase_correction, unwrap, window
 from measurements import get_all_measurements
 from tmm_slim import coh_tmm
@@ -515,8 +515,13 @@ class Image:
             self.options["cbar_min"] = np.log10(self.options["cbar_min"])
             self.options["cbar_max"] = np.log10(self.options["cbar_max"])
 
-        cbar_min = np.min(grid_vals[grid_vals > self.options["cbar_min"]])
-        cbar_max = np.max(grid_vals[grid_vals < self.options["cbar_max"]])
+        try:
+            cbar_min = np.min(grid_vals[grid_vals > self.options["cbar_min"]])
+            cbar_max = np.max(grid_vals[grid_vals < self.options["cbar_max"]])
+        except ValueError:
+            print("Check cbar bounds")
+            cbar_min = np.min(grid_vals[grid_vals > 0])
+            cbar_max = np.max(grid_vals[grid_vals < np.inf])
 
         # grid_vals[grid_vals < self.options["cbar_min"]] = 0
         # grid_vals[grid_vals > self.options["cbar_max"]] = 0
@@ -534,16 +539,15 @@ class Image:
         ax.set_xlabel("x (mm)")
         ax.set_ylabel("y (mm)")
 
-        def fmt(x, val):
-            a, b = '{:.2e}'.format(x).split('e')
-            b = int(b)
-            return r'${} \times 10^{{{}}}$'.format(a, b)
+        if np.max(grid_vals) > 1000:
+            cbar = fig.colorbar(img, format=ticker.FuncFormatter(fmt))
+        else:
+            cbar = fig.colorbar(img)
 
-        # cbar = fig.colorbar(img, format=ticker.FuncFormatter(fmt))
-        cbar = fig.colorbar(img)
         if quantity.lower() == "conductivity":
             label = " at " + str(np.round(selected_freq, 3)) + " THz"
-            cbar.set_label("$\log_{10}$($\sigma$) (MS/m)" + label, rotation=270, labelpad=30)
+            cbar.set_label("$\log_{10}$($\sigma$) " + label, rotation=270, labelpad=30)
+            cbar.set_label("$\sigma$ (S/m) " + label, rotation=270, labelpad=30)
         else:
             cbar.set_label(f"{quantity}" + label, rotation=270, labelpad=30)
 
@@ -830,8 +834,10 @@ class Image:
         _4pp_vals = self._4pp_measurement(s_idx=self.sample_idx, row_id=row_idx)
         _4pp_val_scaled = scale(_4pp_vals)
 
-        line_len = 3.5  # s4
-        line_len = 4.0  # s2
+        if self.sample_idx == 3:
+            line_len = 3.5  # s4
+        else:
+            line_len = 4.0  # s2
 
         segment_cnt = len(_4pp_vals)
 
@@ -863,25 +869,32 @@ class Image:
         # positions = [0, 1, 2, 6]
         # positions = [1, 2, 3, 4, 5, 6]
         """
-        """
-        plt.figure("THz sigma vs 4pp sigma")
-        plt.title("THz vs 4pp conductivity")
-        plt.scatter(_4pp_vals, thz_cond_vals)
-        plt.xlabel("4pp (S/m)")
-        plt.ylabel("THz (S/m)")
-        """
+
+        fig = plt.figure("THz vs 4pp")
+        ax = fig.add_subplot(111)
+        ax.set_title("$\sigma_{THz}$(1.2 THz) vs $\sigma_{4pp}$(DC)")
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
+        ax.scatter(_4pp_vals, thz_cond_vals)
+        ax.set_xlabel("$\sigma_{4pp}$(DC) (S/m)")
+        ax.set_ylabel("$\sigma_{THz}$(1.2 THz) (S/m)")
+
         thz_cond_vals_scaled = scale(thz_cond_vals)
         thz_slope = np.sign(np.diff(thz_cond_vals))
         _4pp_slope = np.sign(np.diff(_4pp_val_scaled))
         
         positions = range(1, segment_cnt + 1)
 
-        plt.figure("4pp")
-        plt.plot(positions, thz_cond_vals_scaled, label="THz conductivity")
-        plt.plot(positions, _4pp_val_scaled, label="4pp")
-        plt.plot(thz_slope * _4pp_slope)
-        plt.ylabel("Conductivity (Normalized)")
-        plt.xlabel("Position idx")
+        fig = plt.figure("4pp")
+        ax = fig.add_subplot(111)
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
+        tick_spacing = 1
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing))
+        ax.plot(positions, thz_cond_vals_scaled, label="$\sigma_{THz}$(1.2 THz)")
+        ax.plot(positions, _4pp_val_scaled, label="$\sigma_{4pp}$(DC)")
+        # plt.plot(thz_slope * _4pp_slope)
+
+        ax.set_ylabel("Conductivity (S/m)")
+        ax.set_xlabel("Position idx")
 
         return np.sum(thz_slope * _4pp_slope < 0)
 
@@ -903,7 +916,7 @@ class Image:
         ax.set_xlabel("x (mm)")
         ax.set_ylabel("y (mm)")
         cbar = fig.colorbar(img)
-        cbar.set_label(f"Summed correlation (higher is better)", rotation=270, labelpad=30)
+        cbar.set_label(f"Summed correlation (lower is better)", rotation=270, labelpad=30)
 
         if self.options["invert_x"]:
             ax.invert_xaxis()
@@ -912,7 +925,7 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 1
+    sample_idx = 3
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
@@ -936,25 +949,29 @@ if __name__ == '__main__':
         [37, 60, -5, 30]
     ]}
     """  # 1.60*1e4, 1.74*1e4
-    options = {"cbar_min": 1.47e5, "cbar_max": 2.9e5, "log_scale": True, "color_map": "viridis",
+    options = {"cbar_min": 1.47e5, "cbar_max": 2.9e5, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": True}  # s4 (idx 3)
+
+    """
     options = {"cbar_min": 1.5e4, "cbar_max": 1.85e4, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": False}  # s2 (idx 1)
     options = {"cbar_min": 0, "cbar_max": np.inf, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": False}  # s2 (idx 1)
+    """
     film_image = Image(meas_dir, sub_image, sample_idx, options)
     # s1, s2, s3 = [-10, 50, -3, 27]
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    film_image.plot_image(quantity="p2p")
-    # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    film_image.thz_vs_4pp(row_idx=2, p0=(45, 4))
-    film_image.correlation_image(row_idx=2, p0=(40, 10.5))
+    # film_image.plot_image(quantity="p2p")
+    film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
+    #film_image.thz_vs_4pp(row_idx=2, p0=(45, 4)) # s2
+    film_image.thz_vs_4pp(row_idx=3, p0=(37, 6)) # s4
+    #film_image.correlation_image(row_idx=2, p0=(40, 10.5))
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
     # sub_image.system_stability(selected_freq_=0.800)
-    film_image.system_stability(selected_freq_=1.200)
+    #film_image.system_stability(selected_freq_=1.200)
 
     # s4 = [18, 51, 0, 20]
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p", selected_freq=1.200)

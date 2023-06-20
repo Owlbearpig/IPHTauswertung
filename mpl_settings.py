@@ -6,6 +6,12 @@ import matplotlib.font_manager
 
 # print([f.name for f in matplotlib.font_manager.fontManager.ttflist])
 
+def fmt(x, val):
+    a, b = '{:.2e}'.format(x).split('e')
+    b = int(b)
+    # return r'${} \times 10^{{{}}}$'.format(a, b)
+    return rf'{a}E+{b:02}'
+
 # mpl.rcParams['lines.linestyle'] = '--'
 #mpl.rcParams['legend.fontsize'] = 'large' #'x-large'
 mpl.rcParams['legend.shadow'] = False
