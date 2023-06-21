@@ -784,7 +784,7 @@ class Image:
         s4_r3 = array([2.08, 5.64, 5.44, 3.43, 6.51, 16.6, 10.8, 11.5, 12.7, 9.5, 6.29]) * 1e4
 
         # map_ = {"s2_r2": s2_r2[:11], "s4_r3": s4_r3}
-        map_ = {"s2_r2": s2_r2[0:9], "s4_r3": s4_r3}
+        map_ = {"s2_r2": s2_r2[0:11], "s4_r3": s4_r3}
 
         return map_[f"s{s_idx + 1}_r{row_id}"]
 
@@ -816,7 +816,7 @@ class Image:
 
         return avg_val
 
-    def thz_vs_4pp(self, row_idx, p0=None):
+    def thz_vs_4pp(self, row_idx, p0=None, en_plot=True):
         def scale(val, dst=None):
             """
             Scale the given value to the scale of dst.
@@ -837,7 +837,7 @@ class Image:
         if self.sample_idx == 3:
             line_len = 3.5  # s4
         else:
-            line_len = 4.0  # s2
+            line_len = 3.5 # 4.0  # s2
 
         segment_cnt = len(_4pp_vals)
 
@@ -856,6 +856,8 @@ class Image:
             pr = (p0[0] - i * line_len, p0[1])
             avg_val = self._average_area(pr, line_len)
             thz_cond_vals.append(avg_val)
+        thz_cond_vals = array(thz_cond_vals)
+
         """
         for i in range(3):
             # pr = (pr0[0] - i*10.5/2, pr0[1])
@@ -870,13 +872,21 @@ class Image:
         # positions = [1, 2, 3, 4, 5, 6]
         """
 
-        fig = plt.figure("THz vs 4pp")
-        ax = fig.add_subplot(111)
-        ax.set_title("$\sigma_{THz}$(1.2 THz) vs $\sigma_{4pp}$(DC)")
-        ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
-        ax.scatter(_4pp_vals, thz_cond_vals)
-        ax.set_xlabel("$\sigma_{4pp}$(DC) (S/m)")
-        ax.set_ylabel("$\sigma_{THz}$(1.2 THz) (S/m)")
+        if en_plot:
+            fig = plt.figure("THz vs 4pp")
+            ax = fig.add_subplot(111)
+            ax.set_title("$\sigma_{THz}$(1.2 THz) vs $\sigma_{4pp}$(DC)")
+            ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
+            ax.scatter(_4pp_vals, thz_cond_vals)
+            z = np.polyfit(_4pp_vals, thz_cond_vals, 1)
+            x = np.linspace(0, 25000, 1000)
+            p = z[0] * x + z[1]
+            ax.plot(x, p, label=f"Linear fit 1 ({round(z[0], 2)}x+{round(z[1], 0)} S/m)")
+            z = np.polyfit(_4pp_vals[_4pp_vals < 20000.0], thz_cond_vals[_4pp_vals < 20000.0], 1)
+            p = z[0] * x + z[1]
+            ax.plot(x, p, label=f"Linear fit 2 ({round(z[0], 2)}x+{round(z[1], 0)} S/m)")
+            ax.set_xlabel("$\sigma_{4pp}$(DC) (S/m)")
+            ax.set_ylabel("$\sigma_{THz}$(1.2 THz) (S/m)")
 
         thz_cond_vals_scaled = scale(thz_cond_vals)
         thz_slope = np.sign(np.diff(thz_cond_vals))
@@ -884,17 +894,18 @@ class Image:
         
         positions = range(1, segment_cnt + 1)
 
-        fig = plt.figure("4pp")
-        ax = fig.add_subplot(111)
-        ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
-        tick_spacing = 1
-        ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing))
-        ax.plot(positions, thz_cond_vals_scaled, label="$\sigma_{THz}$(1.2 THz)")
-        ax.plot(positions, _4pp_val_scaled, label="$\sigma_{4pp}$(DC)")
-        # plt.plot(thz_slope * _4pp_slope)
+        if en_plot:
+            fig = plt.figure("4pp")
+            ax = fig.add_subplot(111)
+            ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
+            tick_spacing = 1
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing))
+            ax.plot(positions, thz_cond_vals_scaled, label="$\sigma_{THz}$(1.2 THz)")
+            ax.plot(positions, _4pp_val_scaled, label="$\sigma_{4pp}$(DC)")
+            # plt.plot(thz_slope * _4pp_slope)
 
-        ax.set_ylabel("Conductivity (S/m)")
-        ax.set_xlabel("Position idx")
+            ax.set_ylabel("Conductivity (S/m)")
+            ax.set_xlabel("Position idx")
 
         return np.sum(thz_slope * _4pp_slope < 0)
 
@@ -910,7 +921,7 @@ class Image:
         corr_grid = np.zeros((x_[1] - x_[0], y_[1] - y_[0]))
         for i, x in enumerate(range(*x_)):
             for j, y in enumerate(range(*y_)):
-                corr = film_image.thz_vs_4pp(row_idx=row_idx, p0=(x, y))
+                corr = film_image.thz_vs_4pp(row_idx=row_idx, p0=(x, y), en_plot=False)
                 corr_grid[i, j] = corr
         img = ax.imshow(corr_grid.transpose((1, 0)), extent=[*x_, *y_], origin="lower", )
         ax.set_xlabel("x (mm)")
@@ -925,7 +936,7 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 3
+    sample_idx = 1
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
@@ -950,7 +961,7 @@ if __name__ == '__main__':
     ]}
     """  # 1.60*1e4, 1.74*1e4
     options = {"cbar_min": 1.47e5, "cbar_max": 2.9e5, "log_scale": False, "color_map": "viridis",
-               "invert_x": True, "invert_y": True}  # s4 (idx 3)
+               "invert_x": True, "invert_y": False}  # s4 (idx 3)
 
     """
     options = {"cbar_min": 1.5e4, "cbar_max": 1.85e4, "log_scale": False, "color_map": "viridis",
@@ -965,11 +976,12 @@ if __name__ == '__main__':
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
     # film_image.plot_image(quantity="p2p")
     film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    #film_image.thz_vs_4pp(row_idx=2, p0=(45, 4)) # s2
-    film_image.thz_vs_4pp(row_idx=3, p0=(37, 6)) # s4
-    #film_image.correlation_image(row_idx=2, p0=(40, 10.5))
+    # film_image.thz_vs_4pp(row_idx=2, p0=(40, 10.5))  # p0=(45, 4) # s2
+    film_image.thz_vs_4pp(row_idx=2, p0=(40, 20))  # p0=(45, 4) # s2
+    # film_image.thz_vs_4pp(row_idx=3, p0=(37, 6))  # s4
+    film_image.correlation_image(row_idx=2, p0=(40, 10.5))
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
-
+    # TODO System stability plot
     # sub_image.system_stability(selected_freq_=0.800)
     #film_image.system_stability(selected_freq_=1.200)
 
