@@ -546,8 +546,9 @@ class Image:
 
         if quantity.lower() == "conductivity":
             label = " at " + str(np.round(selected_freq, 3)) + " THz"
-            cbar.set_label("$\log_{10}$($\sigma$) " + label, rotation=270, labelpad=30)
             cbar.set_label("$\sigma$ (S/m) " + label, rotation=270, labelpad=30)
+            if self.options["log_scale"]:
+                cbar.set_label("$\log_{10}$($\sigma$) " + label, rotation=270, labelpad=30)
         else:
             cbar.set_label(f"{quantity}" + label, rotation=270, labelpad=30)
 
@@ -925,7 +926,7 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 3
+    sample_idx = 1
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
@@ -952,12 +953,12 @@ if __name__ == '__main__':
     options = {"cbar_min": 1.47e5, "cbar_max": 2.9e5, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": True}  # s4 (idx 3)
 
-    """
+
     options = {"cbar_min": 1.5e4, "cbar_max": 1.85e4, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": False}  # s2 (idx 1)
-    options = {"cbar_min": 0, "cbar_max": np.inf, "log_scale": False, "color_map": "viridis",
+    options = {"cbar_min": 1.4e4, "cbar_max": 1.8e4, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": False}  # s2 (idx 1)
-    """
+
     film_image = Image(meas_dir, sub_image, sample_idx, options)
     # s1, s2, s3 = [-10, 50, -3, 27]
     # film_image.plot_cond_vs_d()
@@ -965,8 +966,8 @@ if __name__ == '__main__':
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
     # film_image.plot_image(quantity="p2p")
     film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    #film_image.thz_vs_4pp(row_idx=2, p0=(45, 4)) # s2
-    film_image.thz_vs_4pp(row_idx=3, p0=(37, 6)) # s4
+    # film_image.thz_vs_4pp(row_idx=2, p0=(45, 4)) # s2
+    # film_image.thz_vs_4pp(row_idx=2, p0=(37, 6)) # s4
     #film_image.correlation_image(row_idx=2, p0=(40, 10.5))
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
