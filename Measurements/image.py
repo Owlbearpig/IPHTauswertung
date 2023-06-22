@@ -692,9 +692,14 @@ class Image:
 
             ref_ampl_arr.append(np.sum(np.abs(ref_fd[f_idx, 1])) / 1)
             phi = np.angle(ref_fd[f_idx, 1])
+            """ ???
             if i and (abs(ref_angle_arr[-1] - phi) > pi):
                 phi -= 2 * pi
+            """
             ref_angle_arr.append(phi)
+        ref_angle_arr = np.unwrap(ref_angle_arr)
+        ref_angle_arr -= np.mean(ref_angle_arr)
+        ref_ampl_arr -= np.mean(ref_ampl_arr)
 
         random.seed(10)
         rnd_sam = random.choice(self.sams)
@@ -710,16 +715,16 @@ class Image:
         amp_interpol2, phi_interpol2 = self._ref_interpolation(sam2, ret_cart=False, selected_freq_=selected_freq_)
 
         plt.figure("System stability amplitude")
-        plt.title("Single frequency reference amplitude")
-        plt.plot(meas_times, ref_ampl_arr, label=f"Amplitude at {selected_freq_} THz")
+        plt.title(f"Reference amplitude at {selected_freq_} THz")
+        plt.plot(meas_times, ref_ampl_arr, label=t0)
         # plt.plot(sam_t1, amp_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
         # plt.plot(sam_t2, amp_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
         plt.xlabel("Measurement time (hour)")
         plt.ylabel("Amplitude (Arb. u.)")
 
         plt.figure("System stability angle")
-        plt.title("Single frequency reference phase")
-        plt.plot(meas_times, ref_angle_arr, label=f"Phase at {selected_freq_} THz")
+        plt.title(f"Reference phase at {selected_freq_} THz")
+        plt.plot(meas_times, ref_angle_arr, label=t0)
         # plt.plot(sam_t1, phi_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
         # plt.plot(sam_t2, phi_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
         plt.xlabel("Measurement time (hour)")
@@ -784,11 +789,17 @@ class Image:
         s4_r3 = array([2.08, 5.64, 5.44, 3.43, 6.51, 16.6, 10.8, 11.5, 12.7, 9.5, 6.29]) * 1e4
 
         # map_ = {"s2_r2": s2_r2[:11], "s4_r3": s4_r3}
-        map_ = {"s2_r2": s2_r2[0:9], "s4_r3": s4_r3}
+        map_ = {"s2_r2": s2_r2, "s4_r3": s4_r3}
 
-        return map_[f"s{s_idx + 1}_r{row_id}"]
+        if "flipped" not in str(self.data_path):
+            slice_ = slice(0, 11)
+            vals = map_[f"s{s_idx + 1}_r{row_id}"][slice_]
+        else:
+            vals = array([10.1, 4.69, 0.682, 12.9, 10.3, 10.7, 10.7, 9.06, 0.937]) * 1e3
 
-    def _average_area(self, p0=None, line_len=None):
+        return vals
+
+    def _average_area(self, p0=None, line_len=None, arrow_height=None):
         if p0 is None:
             p0 = (33, 15)  # point upper right (mm)
 
@@ -796,8 +807,11 @@ class Image:
             s = 3.5  # mm
             line_len = 3 * s
 
-        arrow_height = 0  # self.image_info["dy"] assume single pixel, mm
-        p1 = p0[0] - line_len, p0[1] - arrow_height  # second point of arrow
+        if arrow_height is None:
+            # arrow_height = 0  # self.image_info["dy"] assume single pixel, mm
+            arrow_height = 2
+
+        p1 = p0[0] - line_len, p0[1] + arrow_height  # second point of arrow
         print(f"segment: {p0}, {p1}")
         # convert to idx. Direction of the line doesn't matter
         p1_idx, p0_idx = self._coords_to_idx(*p1), self._coords_to_idx(*p0)
@@ -816,13 +830,13 @@ class Image:
 
         return avg_val
 
-    def thz_vs_4pp(self, row_idx, p0=None):
+    def thz_vs_4pp(self, row_idx, p0=None, en_plot=True):
         def scale(val, dst=None):
             """
             Scale the given value to the scale of dst.
             """
             val = array(val)
-            return val
+            # return val
             # return np.log10(val)
 
             if dst is None:
@@ -837,9 +851,10 @@ class Image:
         if self.sample_idx == 3:
             line_len = 3.5  # s4
         else:
-            line_len = 4.0  # s2
+            line_len = 3.5  # 4.0 # s2
 
         segment_cnt = len(_4pp_vals)
+        positions = range(1, segment_cnt + 1)
 
         if p0 is None:
             # pr_s1 = (33, 15)
@@ -851,57 +866,57 @@ class Image:
             # p0_s2_r2 = (44, 15.5)
             p0 = p0_s2_r2
 
-        thz_cond_vals = []
-        for i in range(segment_cnt):
-            pr = (p0[0] - i * line_len, p0[1])
-            avg_val = self._average_area(pr, line_len)
-            thz_cond_vals.append(avg_val)
-        """
-        for i in range(3):
-            # pr = (pr0[0] - i*10.5/2, pr0[1])
-            pr = (pr_s4_46[0], pr_s4_46[1] - i * 10.5 / 2)
-            print(pr)
-            avg_val = self._average_area(pr, line_len)
-            thz_cond_vals.append(avg_val)
-        
-        # avg_val = self._average_area((4.2, 15))
-        # thz_cond_vals.append(avg_val)
-        # positions = [0, 1, 2, 6]
-        # positions = [1, 2, 3, 4, 5, 6]
-        """
+        thz_cond_vals = {}
+        for dy in [0, 1, 2, 4]:
+            thz_cond = []
+            for i in range(segment_cnt):
+                pr = (p0[0] - i * line_len, p0[1])
+                avg_val = self._average_area(pr, line_len, dy)
+                thz_cond.append(avg_val)
 
-        fig = plt.figure("THz vs 4pp")
-        ax = fig.add_subplot(111)
-        ax.set_title("$\sigma_{THz}$(1.2 THz) vs $\sigma_{4pp}$(DC)")
-        ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
-        ax.scatter(_4pp_vals, thz_cond_vals)
-        ax.set_xlabel("$\sigma_{4pp}$(DC) (S/m)")
-        ax.set_ylabel("$\sigma_{THz}$(1.2 THz) (S/m)")
+            thz_cond = np.array(thz_cond)
+            thz_cond_vals[str(dy)] = scale(thz_cond)
 
-        thz_cond_vals_scaled = scale(thz_cond_vals)
-        thz_slope = np.sign(np.diff(thz_cond_vals))
+        if "flipped" in str(self.data_path):
+            #positions = np.arange(22, 13, -1)
+            positions = np.arange(14, 23, 1)
+
+        # thz_cond_vals_scaled = scale(thz_cond_vals)
+
+        if en_plot:
+            fig = plt.figure("THz vs 4pp")
+            ax = fig.add_subplot(111)
+            ax.set_title("$\sigma_{THz}$(1.2 THz) vs $\sigma_{4pp}$(DC)")
+            #ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
+            ax.scatter(_4pp_vals, thz_cond_vals["0"])
+            ax.set_xlabel("$\sigma_{4pp}$(DC) (S/m)")
+            ax.set_ylabel("$\sigma_{THz}$(1.2 THz) (S/m)")
+
+            fig = plt.figure("4pp")
+            ax = fig.add_subplot(111)
+            # ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
+            tick_spacing = 1
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing))
+
+            ax.plot(positions, _4pp_val_scaled, label="$\sigma_{4pp}$(DC)")
+            # plt.plot(thz_slope * _4pp_slope)
+
+            ax.set_ylabel("Conductivity (normalized)")
+            ax.set_xlabel("Position idx")
+
+            for dy in thz_cond_vals.keys():
+                plt.figure("4pp")
+                ax.plot(positions, thz_cond_vals[str(dy)], label="$\sigma_{THz}$(1.2 THz)" + f" dy={dy} mm")
+
+        thz_slope = np.sign(np.diff(thz_cond_vals["0"]))
         _4pp_slope = np.sign(np.diff(_4pp_val_scaled))
-        
-        positions = range(1, segment_cnt + 1)
-
-        fig = plt.figure("4pp")
-        ax = fig.add_subplot(111)
-        ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
-        tick_spacing = 1
-        ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing))
-        ax.plot(positions, thz_cond_vals_scaled, label="$\sigma_{THz}$(1.2 THz)")
-        ax.plot(positions, _4pp_val_scaled, label="$\sigma_{4pp}$(DC)")
-        # plt.plot(thz_slope * _4pp_slope)
-
-        ax.set_ylabel("Conductivity (S/m)")
-        ax.set_xlabel("Position idx")
 
         return np.sum(thz_slope * _4pp_slope < 0)
 
     def correlation_image(self, row_idx, p0=None):
         fig = plt.figure("correlation grid")
         ax = fig.add_subplot(111)
-        ax.set_title("Summed 4pp and THz correlation")
+        ax.set_title("Summed 4pp and THz anticorrelation")
         if p0 is None:
             x_, y_ = [32, 42], [0, 15]
         else:
@@ -910,13 +925,13 @@ class Image:
         corr_grid = np.zeros((x_[1] - x_[0], y_[1] - y_[0]))
         for i, x in enumerate(range(*x_)):
             for j, y in enumerate(range(*y_)):
-                corr = film_image.thz_vs_4pp(row_idx=row_idx, p0=(x, y))
+                corr = film_image.thz_vs_4pp(row_idx=row_idx, p0=(x, y), en_plot=False)
                 corr_grid[i, j] = corr
-        img = ax.imshow(corr_grid.transpose((1, 0)), extent=[*x_, *y_], origin="lower", )
+        img = ax.imshow(corr_grid.transpose((1, 0)), extent=[*x_, *y_], origin="lower", vmin=1, vmax=9)
         ax.set_xlabel("x (mm)")
         ax.set_ylabel("y (mm)")
         cbar = fig.colorbar(img)
-        cbar.set_label(f"Summed correlation (lower is better)", rotation=270, labelpad=30)
+        cbar.set_label(f"Summed anticorrelation", rotation=270, labelpad=30)
 
         if self.options["invert_x"]:
             ax.invert_xaxis()
@@ -925,15 +940,15 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 3
+    sample_idx = 1
 
     meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
     sub_image = Image(data_path=meas_dir_sub)
 
     # meas_dir = data_dir / "Edge" / sample_names[sample_idx]
     # meas_dir = data_dir / "Edge_4pp2_flipped" / (sample_names[sample_idx] + "_accident")
-    # meas_dir = data_dir / "Edge_4pp2_flipped" / sample_names[sample_idx]
-    meas_dir = data_dir / "Edge_4pp2" / sample_names[sample_idx]
+    meas_dir = data_dir / "Edge_4pp2_flipped" / sample_names[sample_idx]
+    # meas_dir = data_dir / "Edge_4pp2" / sample_names[sample_idx]
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
                                   [-10, -6, -10, 30],
@@ -949,29 +964,35 @@ if __name__ == '__main__':
         [37, 60, -5, 30]
     ]}
     """  # 1.60*1e4, 1.74*1e4
+    """
     options = {"cbar_min": 1.47e5, "cbar_max": 2.9e5, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": True}  # s4 (idx 3)
-
     """
     options = {"cbar_min": 1.5e4, "cbar_max": 1.85e4, "log_scale": False, "color_map": "viridis",
-               "invert_x": True, "invert_y": False}  # s2 (idx 1)
+               "invert_x": True, "invert_y": False}  # s2 (idx 1) unflipped
     options = {"cbar_min": 0, "cbar_max": np.inf, "log_scale": False, "color_map": "viridis",
-               "invert_x": True, "invert_y": False}  # s2 (idx 1)
-    """
+               "invert_x": True, "invert_y": False}  # s2 (idx 1) unflipped
+
+    options = {"cbar_min": 1.4e4, "cbar_max": 1.70e4, "log_scale": False, "color_map": "viridis",
+               "invert_x": False, "invert_y": False}  # s2 (idx 1) flipped
+
     film_image = Image(meas_dir, sub_image, sample_idx, options)
     # s1, s2, s3 = [-10, 50, -3, 27]
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
     # film_image.plot_image(quantity="p2p")
-    film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    #film_image.thz_vs_4pp(row_idx=2, p0=(45, 4)) # s2
-    film_image.thz_vs_4pp(row_idx=3, p0=(37, 6)) # s4
-    #film_image.correlation_image(row_idx=2, p0=(40, 10.5))
+    # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
+    # film_image.thz_vs_4pp(row_idx=2, p0=(40, 10.5))  # s2
+    film_image.thz_vs_4pp(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
+    # film_image.thz_vs_4pp(row_idx=2, p0=(43, 4))  # s2 from corr img.
+    # film_image.thz_vs_4pp(row_idx=3, p0=(37, 6)) # s4
+    # film_image.correlation_image(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
+    # film_image.correlation_image(row_idx=3, p0=(37, 6))  # s4
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
-    # sub_image.system_stability(selected_freq_=0.800)
-    #film_image.system_stability(selected_freq_=1.200)
+    # sub_image.system_stability(selected_freq_=1.200)
+    # film_image.system_stability(selected_freq_=1.200)
 
     # s4 = [18, 51, 0, 20]
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p", selected_freq=1.200)
