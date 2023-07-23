@@ -3,11 +3,14 @@ import random
 import re
 import timeit
 from itertools import product
+
+import matplotlib.pyplot as plt
+
 from consts import *
 import numpy as np
 import matplotlib.ticker as ticker
 from mpl_settings import *
-from functions import do_fft, do_ifft, phase_correction, unwrap, window
+from functions import do_fft, do_ifft, phase_correction, unwrap, window, polyfit
 from measurements import get_all_measurements
 from tmm_slim import coh_tmm
 # from tmm import coh_tmm
@@ -524,13 +527,15 @@ class Image:
             cbar_max = np.max(grid_vals[grid_vals < np.inf])
 
         # grid_vals[grid_vals < self.options["cbar_min"]] = 0
-        # grid_vals[grid_vals > self.options["cbar_max"]] = 0
+        # grid_vals[grid_vals > self.options["cbar_max"]] = 0 # [x_coords[0], x_coords[-1], y_coords[0], y_coords[-1]]
 
+        axes_extent = [img_extent[0] - self.image_info["dx"] / 2, img_extent[1] + self.image_info["dx"] / 2,
+                       img_extent[2] - self.image_info["dy"] / 2, img_extent[3] + self.image_info["dy"] / 2]
         img = ax.imshow(grid_vals.transpose((1, 0)),
                         vmin=cbar_min, vmax=cbar_max,
                         origin="lower",
                         cmap=plt.get_cmap(self.options["color_map"]),
-                        extent=img_extent)
+                        extent=axes_extent)
         if self.options["invert_x"]:
             ax.invert_xaxis()
         if self.options["invert_y"]:
@@ -783,36 +788,34 @@ class Image:
             map_ = {"0": s1, "3": s4}
 
             return map_[str(s_idx)]
+        s1_r1 = array([2.76E+06, 2.76E+06, 3.15E+06, 3.68E+06, 4.20E+06, 4.15E+06,
+                       3.92E+06, 4.31E+06, 4.31E+06, 4.41E+06, 4.53E+06, 4.31E+06])
+        s1_r2 = array([3.46E+06, 3.46E+06, 3.15E+06, 4.90E+06, 4.41E+06, 4.20E+06,
+                       4.41E+06, 4.53E+06, 4.90E+06, 4.90E+06, 4.84E+06, 5.19E+06])
+        s1_r3 = array([4.44E+06, 4.20E+06, 3.97E+06, 4.77E+06, 4.77E+06, 3.80E+06,
+                       4.64E+06, 4.64E+06, 4.90E+06, 4.77E+06, 4.77E+06, 4.90E+06])
+        s1_r4 = array([4.44E+06, 4.77E+06, 4.64E+06, 4.58E+06, 4.41E+06, 4.90E+06,
+                       4.90E+06, 4.90E+06, 4.90E+06, 4.90E+06, 4.77E+06, 4.90E+06])
 
         s2_r2 = array([1.13, 3.09, 7.35, 4.56, 22.6, 2.31, 7.82, 10.9, 13.3, 10.4, 9.13,
                        9.57, 8.54, 10.1, 4.69, 0.682, 12.9, 10.3, 10.7, 10.7, 9.06, 0.937, 0.421]) * 1e3
         s4_r3 = array([2.08, 5.64, 5.44, 3.43, 6.51, 16.6, 10.8, 11.5, 12.7, 9.5, 6.29]) * 1e4
 
         # map_ = {"s2_r2": s2_r2[:11], "s4_r3": s4_r3}
-        map_ = {"s2_r2": s2_r2, "s4_r3": s4_r3}
+        map_ = {"s2_r2": s2_r2, "s4_r3": s4_r3,
+                "s1_r1": s1_r1, "s1_r2": s1_r2, "s1_r3": s1_r3, "s1_r4": s1_r4}
 
         if "flipped" not in str(self.data_path):
-            slice_ = slice(0, 11)
+            slice_ = slice(0, 10)
             vals = map_[f"s{s_idx + 1}_r{row_id}"][slice_]
         else:
             vals = array([10.1, 4.69, 0.682, 12.9, 10.3, 10.7, 10.7, 9.06, 0.937]) * 1e3
 
         return vals
 
-    def _average_area(self, p0=None, line_len=None, arrow_height=None):
-        if p0 is None:
-            p0 = (33, 15)  # point upper right (mm)
+    def _average_area(self, line_segment):
+        p0, p1 = line_segment
 
-        if line_len is None:
-            s = 3.5  # mm
-            line_len = 3 * s
-
-        if arrow_height is None:
-            # arrow_height = 0  # self.image_info["dy"] assume single pixel, mm
-            arrow_height = 2
-
-        p1 = p0[0] - line_len, p0[1] + arrow_height  # second point of arrow
-        print(f"segment: {p0}, {p1}")
         # convert to idx. Direction of the line doesn't matter
         p1_idx, p0_idx = self._coords_to_idx(*p1), self._coords_to_idx(*p0)
         min_x, max_x = min(p1_idx[0], p0_idx[0]), max(p1_idx[0], p0_idx[0])
@@ -836,7 +839,7 @@ class Image:
             Scale the given value to the scale of dst.
             """
             val = array(val)
-            # return val
+            return val
             # return np.log10(val)
 
             if dst is None:
@@ -845,52 +848,77 @@ class Image:
             # return val / np.max(val)
             return ((val - src[0]) / (src[1] - src[0])) * (dst[1] - dst[0]) + dst[0]
 
+        def line_segments(segment_cnt_, p0_, line_len_=None, arrow_height=None):
+            if line_len_ is None:
+                s = 3.5  # mm
+                # line_len = 3 * s
+                line_len_ = 1 * s
+
+            if arrow_height is None:
+                arrow_height = 0  # self.image_info["dy"] assume single pixel, mm
+                # arrow_height = 2
+
+            segments_ = []
+            for segment_idx in range(segment_cnt_):
+                pl = (p0_[0] - segment_idx * line_len_, p0_[1])  # first point of arrow
+
+                pr = p0_[0] - (segment_idx + 1) * line_len_, p0_[1] + arrow_height  # second point of arrow
+                print(f"segment: {pl}, {pr}")
+                segments_.append((pl, pr))
+
+            return segments_
+
         _4pp_vals = self._4pp_measurement(s_idx=self.sample_idx, row_id=row_idx)
         _4pp_val_scaled = scale(_4pp_vals)
+
+        segment_cnt = len(_4pp_vals)
+        positions = range(1, segment_cnt + 1)
 
         if self.sample_idx == 3:
             line_len = 3.5  # s4
         else:
             line_len = 3.5  # 4.0 # s2
 
-        segment_cnt = len(_4pp_vals)
-        positions = range(1, segment_cnt + 1)
-
         if p0 is None:
-            # pr_s1 = (33, 15)
-            # pr_s4_13 = (2, 13)
-            # pr_s4_46 = (30, 12)
-            pr_s4_r3 = (37, 6)  # best
-            # pr_s4_r3 = (41, 6)
-            p0_s2_r2 = (40, 10.5)
-            # p0_s2_r2 = (44, 15.5)
-            p0 = p0_s2_r2
+            p0_map_ = {"s1": (33, 15), "s4_13": (2, 13), "s4_46": (30, 12), "s4_r3": (37, 6), "s2_r2": (44, 15.5),
+                       "s1_r4": (30.5, -1.5), "s1_r3": (30.5, 3.0), "s1_r2": (30.5, 8.5), "s1_r1": (30.5, 13.5)}
+            p0 = p0_map_[f"s{self.sample_idx + 1}_r{row_idx}"]
 
-        thz_cond_vals = {}
-        for dy in [0, 1, 2, 4]:
+        segments, thz_cond_vals = {}, {}
+        for dy in range(4):
+            segments[str(dy)] = line_segments(segment_cnt, p0, line_len, dy)
+
             thz_cond = []
-            for i in range(segment_cnt):
-                pr = (p0[0] - i * line_len, p0[1])
-                avg_val = self._average_area(pr, line_len, dy)
+            for segment in segments[str(dy)]:
+                avg_val = self._average_area(segment)
                 thz_cond.append(avg_val)
 
             thz_cond = np.array(thz_cond)
             thz_cond_vals[str(dy)] = scale(thz_cond)
 
         if "flipped" in str(self.data_path):
-            #positions = np.arange(22, 13, -1)
+            # positions = np.arange(22, 13, -1)
             positions = np.arange(14, 23, 1)
-
-        # thz_cond_vals_scaled = scale(thz_cond_vals)
 
         if en_plot:
             fig = plt.figure("THz vs 4pp")
-            ax = fig.add_subplot(111)
-            ax.set_title("$\sigma_{THz}$(1.2 THz) vs $\sigma_{4pp}$(DC)")
-            #ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
-            ax.scatter(_4pp_vals, thz_cond_vals["0"])
-            ax.set_xlabel("$\sigma_{4pp}$(DC) (S/m)")
-            ax.set_ylabel("$\sigma_{THz}$(1.2 THz) (S/m)")
+            _4pp_vs_thz_ax = fig.add_subplot(111)
+            _4pp_vs_thz_ax.set_title("$\sigma_{THz}$(1.2 THz) vs $\sigma_{4pp}$(DC)")
+            _4pp_vs_thz_ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
+            _4pp_vs_thz_ax.xaxis.set_major_formatter(ticker.FuncFormatter(fmt))
+            _4pp_vs_thz_ax.scatter(_4pp_vals, thz_cond_vals["0"], color="red", s=25, label="Data")
+            _4pp_vs_thz_ax.set_xlabel("Conductivity 4pp measurement (S/m)")
+            _4pp_vs_thz_ax.set_ylabel("Conductivity THz measurement (S/m)")
+
+            res = polyfit(_4pp_vals, thz_cond_vals["0"], 1)
+            # print(res)
+
+            x = np.linspace(0, 2e5, 1000)
+            # res = np.polyfit(_4pp_vals, thz_cond_vals["0"], 1, full=True)
+            z = res["polynomial"]
+            fit = z[0] * x + z[1]
+            r2 = "$R^2=$" + str(round(res["determination"], 2))
+            # ax.plot(x, fit, label=f"Linear fit ({np.round(z[0], 2)}x+{np.round(z[1])} S/m)\n" + r2)
 
             fig = plt.figure("4pp")
             ax = fig.add_subplot(111)
@@ -908,6 +936,18 @@ class Image:
                 plt.figure("4pp")
                 ax.plot(positions, thz_cond_vals[str(dy)], label="$\sigma_{THz}$(1.2 THz)" + f" dy={dy} mm")
 
+            def plot_line_segment(segment_):
+                plt.figure(f"{self.name} {sample_labels[self.sample_idx]}")
+                img_ax = plt.gca()
+                x1 = (segment_[0][0], segment_[1][0])
+                y1 = (segment_[0][1], segment_[1][1])
+                img_ax.vlines(x=x1[0], ymin=y1[0] - 1, ymax=y1[0] + 1, colors="red", lw=3, zorder=1)
+                img_ax.vlines(x=x1[1], ymin=y1[1] - 1, ymax=y1[1] + 1, colors="red", lw=3, zorder=1)
+                img_ax.plot(x1, y1, color="red", zorder=1)
+
+            for segment in segments["0"]:
+                plot_line_segment(segment)
+
         thz_slope = np.sign(np.diff(thz_cond_vals["0"]))
         _4pp_slope = np.sign(np.diff(_4pp_val_scaled))
 
@@ -920,7 +960,7 @@ class Image:
         if p0 is None:
             x_, y_ = [32, 42], [0, 15]
         else:
-            x_, y_ = [int(p0[0]-7), int(p0[0]+7)], [int(p0[1]-7), int(p0[1]+7)]
+            x_, y_ = [int(p0[0] - 7), int(p0[0] + 7)], [int(p0[1] - 7), int(p0[1] + 7)]
 
         corr_grid = np.zeros((x_[1] - x_[0], y_[1] - y_[0]))
         for i, x in enumerate(range(*x_)):
@@ -940,15 +980,15 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 1
+    sample_idx = 0
 
-    meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
+    meas_dir_sub = data_dir / "Uncoated" / "s1"
     sub_image = Image(data_path=meas_dir_sub)
 
     # meas_dir = data_dir / "Edge" / sample_names[sample_idx]
     # meas_dir = data_dir / "Edge_4pp2_flipped" / (sample_names[sample_idx] + "_accident")
-    meas_dir = data_dir / "Edge_4pp2_flipped" / sample_names[sample_idx]
-    # meas_dir = data_dir / "Edge_4pp2" / sample_names[sample_idx]
+    # meas_dir = data_dir / "Edge_4pp2_flipped" / sample_names[sample_idx]
+    meas_dir = data_dir / "s1_new_area_20_07_2023" / "Image0"
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
                                   [-10, -6, -10, 30],
@@ -975,16 +1015,19 @@ if __name__ == '__main__':
 
     options = {"cbar_min": 1.4e4, "cbar_max": 1.70e4, "log_scale": False, "color_map": "viridis",
                "invert_x": False, "invert_y": False}  # s2 (idx 1) flipped
+    options = {"cbar_min": 1e6, "cbar_max": 10e6, "log_scale": False, "color_map": "viridis",
+               "invert_x": True, "invert_y": False}  # s2 (idx 1) flipped
 
     film_image = Image(meas_dir, sub_image, sample_idx, options)
     # s1, s2, s3 = [-10, 50, -3, 27]
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    # film_image.plot_image(quantity="p2p")
+    film_image.plot_image(quantity="p2p")
     # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
+    # film_image.thz_vs_4pp(row_idx=1)
     # film_image.thz_vs_4pp(row_idx=2, p0=(40, 10.5))  # s2
-    film_image.thz_vs_4pp(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
+    # film_image.thz_vs_4pp(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
     # film_image.thz_vs_4pp(row_idx=2, p0=(43, 4))  # s2 from corr img.
     # film_image.thz_vs_4pp(row_idx=3, p0=(37, 6)) # s4
     # film_image.correlation_image(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
@@ -1006,9 +1049,10 @@ if __name__ == '__main__':
     # stability_image.system_stability(selected_freq_=1.200)
 
     for fig_label in plt.get_figlabels():
-        if "Sample" in fig_label:
-            continue
         plt.figure(fig_label)
-        plt.legend()
+        ax = plt.gca()
+        handles, labels = ax.get_legend_handles_labels()
+        if labels:
+            plt.legend()
 
     plt.show()

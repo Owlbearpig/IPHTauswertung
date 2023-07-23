@@ -15,7 +15,7 @@ def fmt(x, val):
 # mpl.rcParams['lines.linestyle'] = '--'
 #mpl.rcParams['legend.fontsize'] = 'large' #'x-large'
 mpl.rcParams['legend.shadow'] = False
-mpl.rcParams['lines.marker'] = 'o'
+# mpl.rcParams['lines.marker'] = 'o'
 mpl.rcParams['lines.markersize'] = 4
 mpl.rcParams['lines.linewidth'] = 3.5 #2
 mpl.rcParams['ytick.major.width'] = 2.5

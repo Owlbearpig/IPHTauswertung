@@ -232,6 +232,30 @@ def chill():
     pass
 
 
+# Polynomial Regression
+def polyfit(x, y, degree):
+    # https://stackoverflow.com/questions/893657/how-do-i-calculate-r-squared-using-python-and-numpy
+    results = {}
+    slice_ = y > 1.5e5
+    x, y = x[slice_], y[slice_]
+    coeffs = np.polyfit(x, y, degree)
+
+     # Polynomial Coefficients
+    results['polynomial'] = coeffs.tolist()
+
+    # r-squared
+    p = np.poly1d(coeffs)
+    # fit values, and mean
+    yhat = p(x)                         # or [p(z) for z in x]
+    ybar = np.sum(y)/len(y)          # or sum(y)/len(y)
+    ssreg = np.sum((yhat-ybar)**2)   # or sum([ (yihat - ybar)**2 for yihat in yhat])
+    sstot = np.sum((y - ybar)**2)    # or sum([ (yi - ybar)**2 for yi in y])
+
+    results['determination'] = ssreg / sstot
+
+    return results
+
+
 def to_db(data_fd):
     if data_fd.ndim == 2:
         return 20 * np.log10(np.abs(data_fd[:, 1]))

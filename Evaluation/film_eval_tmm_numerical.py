@@ -86,17 +86,19 @@ def main(en_plot=True, sample_idx=0, eval_point=None, d_film=None, selected_freq
     if eval_point is None:
         eval_point = (30.0, 10.0)
 
-    plt_title = f"Sample {sample_idx + 1} {sample_labels[sample_idx]} (x={eval_point[0]} mm, y={eval_point[1]} mm)"
+    #plt_title = f"Sample {sample_idx + 1} {sample_labels[sample_idx]} (x={eval_point[0]} mm, y={eval_point[1]} mm)"
+    plt_title = f"Sample {sample_idx + 1} {sample_labels[sample_idx]}"
 
+    data_dir_film = data_dir / "Coated" / sample_names[sample_idx]
     # data_dir_film = data_dir / "Edge" / sample_names[sample_idx]
-    data_dir_film = data_dir / "Edge" / sample_names[sample_idx]
+    # data_dir_film = data_dir / "Edge_4pp2" / sample_names[sample_idx]
 
     image = Image(data_dir_film)
     film_td = image.get_point(*eval_point, sub_offset=True, add_plot=False)
     film_ref_td = image.get_ref(both=False, coords=eval_point)
 
-    film_td = window(film_td, win_len=12, shift=0, en_plot=False, slope=0.05)
-    film_ref_td = window(film_ref_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+    # film_td = window(film_td, win_len=12, shift=0, en_plot=False, slope=0.05)
+    # film_ref_td = window(film_ref_td, win_len=12, shift=0, en_plot=False, slope=0.05)
 
     film_ref_fd, film_fd = do_fft(film_ref_td), do_fft(film_td)
 
@@ -104,10 +106,10 @@ def main(en_plot=True, sample_idx=0, eval_point=None, d_film=None, selected_freq
                                                 en_plot=False, both=True)
     film_td, film_fd = phase_correction(film_fd, fit_range=(0.8, 1.6), extrapolate=True,
                                         en_plot=False, both=True)
-    """
+    #"""
     image.plot_point(*eval_point, sam_td=film_td, ref_td=film_ref_td,
-                     label=f"Sample {sample_idx + 1}", td_scale=plot_td_scale, sub_noise_floor=True)
-    """
+                     label=f"Sample {sample_idx + 1}", td_scale=plot_td_scale, sub_noise_floor=False)
+    #"""
     data_dir_film = data_dir / "Uncoated" / sample_names[sample_idx]
     image_sub = Image(data_dir_film)
 
@@ -122,10 +124,11 @@ def main(en_plot=True, sample_idx=0, eval_point=None, d_film=None, selected_freq
             np.save(f"n_sub_s{sample_idx}_{eval_point[0]}_{eval_point[1]}.npy", n_sub)
     else:
         try:
-            n_sub = np.load(f"n_sub_s{sample_idx + 1}_9_9.npy")
+            #n_sub = np.load(f"n_sub_s{sample_idx + 1}_41_11.npy")
+            n_sub = np.load(f"n_sub_s{sample_idx + 1}_10_11.npy")
         except FileNotFoundError:
-            n_sub = tmm_eval(image_sub, eval_point=eval_point)
-            np.save(f"n_sub_s{sample_idx + 1}_9_9.npy", n_sub)
+            n_sub = tmm_eval(image_sub, eval_point=(10, 11))
+            np.save(f"n_sub_s{sample_idx + 1}_10_11.npy", n_sub)
 
     # n_sub *= np.random.random(n_sub.shape)
 
@@ -175,10 +178,10 @@ def main(en_plot=True, sample_idx=0, eval_point=None, d_film=None, selected_freq
             selected_f_idx = np.argmin(np.abs(freqs - selected_freq_))
             iters = shgo_iters - 3
             res = shgo(cost, bounds=bounds, args=(selected_f_idx,), iters=iters - 2)
-            while res.fun > 1e-5:
+            while res.fun > 1e-10:
                 iters += 1
                 res = shgo(cost, bounds=bounds, args=(selected_f_idx,), iters=iters)
-                if iters >= 8:
+                if iters >= 10:
                     break
             n_film = res.x[0] + 1j * res.x[1]
 
@@ -192,7 +195,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None, d_film=None, selected_freq
                 bounds = [(1, 175), (0, 175)]
             if freq <= 2.0:
                 print(f"Frequency: {freq} (THz), (idx: {f_idx})")
-                if freq <= 0.25:
+                if freq <= 0.20:
                     res = shgo(cost, bounds=bounds, args=(f_idx,), iters=4)
                 else:
                     iters = shgo_iters - 3
@@ -200,7 +203,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None, d_film=None, selected_freq
                     while (res.fun > 1e-10) and (eval_point[0] < 55):
                         iters += 1
                         res = shgo(cost, bounds=bounds, args=(f_idx,), iters=iters)
-                        if iters >= 5:
+                        if iters >= 8:
                             break
 
                 n_film[f_idx] = res.x[0] + 1j * res.x[1]
@@ -241,8 +244,10 @@ def main(en_plot=True, sample_idx=0, eval_point=None, d_film=None, selected_freq
         plt.figure("Conductivity")
         plt.title("Conductivity " + plt_title)
         plt.ticklabel_format(scilimits=(-2, 3))
-        plt.plot(freqs[plot_range], sigma[plot_range].real, label="Real part $d_{film}=$ " + f"{d_film} nm")
-        # plt.plot(freqs[plot_range], sigma[plot_range].imag, label="Imaginary part $d_{film}=$ " + f"{d_film} nm")
+        #plt.plot(freqs[plot_range], sigma[plot_range].real, label="Real part $d_{film}=$ " + f"{d_film} nm")
+        #plt.plot(freqs[plot_range], sigma[plot_range].imag, label="Imaginary part $d_{film}=$ " + f"{d_film} nm")
+        plt.plot(freqs[plot_range], sigma[plot_range].real, label="Real part")
+        plt.plot(freqs[plot_range], sigma[plot_range].imag, label="Imaginary part")
         plt.xlabel("Frequency (THz)")
         plt.ylabel("Conductivity (S/m)")
 
@@ -281,15 +286,20 @@ def main(en_plot=True, sample_idx=0, eval_point=None, d_film=None, selected_freq
 
 if __name__ == '__main__':
     # main(sample_idx=3, eval_point=(24, 23))
-    # main(sample_idx=0, eval_point=(24, 23))
-    #main(sample_idx=0, eval_point=(20.0, 10.0), d_film=0.000200)
+    #main(sample_idx=2, eval_point=(24, 23))
+    main(sample_idx=2, eval_point=(20, 20))
+    #main(sample_idx=3, eval_point=(33, 11), d_film=0.000200)
+    # main(sample_idx=3, eval_point=(20, 5), d_film=0.000200)  # Edge_4pp2
     #main(sample_idx=0, eval_point=(20.0, 10.0), d_film=0.000275)
     #main(sample_idx=0, eval_point=(20.0, 10.0), d_film=0.000125)
 
-    conductivity_vs_thickness()
+    # conductivity_vs_thickness()
 
     for fig_label in plt.get_figlabels():
         plt.figure(fig_label)
-        plt.legend()
+        ax = plt.gca()
+        handles, labels = ax.get_legend_handles_labels()
+        if labels:
+            plt.legend()
 
     plt.show()

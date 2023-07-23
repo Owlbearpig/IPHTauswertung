@@ -127,8 +127,8 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
             plt.title("Complex refractive index substrates")
             plt.plot(freqs[plot_range_sub], n_sub[plot_range_sub].real, label="Real part " + label)
             plt.plot(freqs[plot_range_sub], n_sub[plot_range_sub].imag, label="Imaginary part " + label)
-            plt.plot(n_tera[:, 0], n_tera[:, 1].real, label=f"Real part (Teralyzer)\nx={eval_point[0]} mm, y={eval_point[1]} mm")
-            plt.plot(n_tera[:, 0], n_tera[:, 1].imag, label=f"Imaginary part (Teralyzer)\nx={eval_point[0]} mm, y={eval_point[1]} mm")
+            #plt.plot(n_tera[:, 0], n_tera[:, 1].real, label=f"Real part (Teralyzer)\nx={eval_point[0]} mm, y={eval_point[1]} mm")
+            #plt.plot(n_tera[:, 0], n_tera[:, 1].imag, label=f"Imaginary part (Teralyzer)\nx={eval_point[0]} mm, y={eval_point[1]} mm")
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Refractive index")
 
@@ -144,10 +144,15 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Absorption (1/cm)")
 
+            noise_floor = np.mean(20 * np.log10(np.abs(sub_ref_fd[sub_ref_fd[:, 0] > 6.0, 1])))
+
             plt.figure("Spectrum")
-            plt.title("Spectrum substrates")
-            plt.plot(sam_tmm_shgo_fd[plot_range1, 0], to_db(sam_tmm_shgo_fd[plot_range1, 1]), label=label, zorder=2,
-                     color="Green")
+            plt.title("Spectrum substrate")
+            plt.plot(sub_ref_fd[plot_range1, 0], to_db(sub_ref_fd[plot_range1, 1]) - noise_floor, label="Reference")
+            plt.plot(sam_tmm_shgo_fd[plot_range1, 0], to_db(sam_tmm_shgo_fd[plot_range1, 1])-noise_floor, label="Uncoated substrate")
+            plt.plot(sub_fd[plot_range1, 0], to_db(sub_fd[plot_range1, 1])-noise_floor, label="TMM fit", zorder=2)
+            plt.xlabel("Frequency (THz)")
+            plt.ylabel("Amplitude (dB)")
 
             plt.figure("Phase")
             plt.title("Phases substrates")
@@ -157,15 +162,36 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
             plt.figure("Time domain")
             plt.plot(sam_tmm_shgo_td[:, 0], sam_tmm_shgo_td[:, 1], label=label, linewidth=2)
 
+            fig, ax1 = plt.subplots()
+            ax1.set_title("Uncoated substrate")
+            color = 'tab:red'
+            ax1.set_xlabel('Frequency (THz)')
+            ax1.set_ylabel('Refractive index', color=color)
+            ax1.plot(freqs[plot_range_sub], n_sub[plot_range_sub].real, color=color)
+            ax1.tick_params(axis='y', labelcolor=color)
+            #ax1.grid(color='r')
+
+            ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+            color = 'tab:blue'
+            ax2.set_ylabel('Absorption (1/cm)', color=color)  # we already handled the x-label with ax1
+            ax2.plot(freqs[plot_range_sub], 0.01*absorption[plot_range_sub], color=color)
+            ax2.tick_params(axis='y', labelcolor=color)
+            #ax2.grid(color='blue')
+
+            fig.tight_layout()  # otherwise the right y-label is slightly clipped
+
     return n_sub
 
 
 if __name__ == '__main__':
     from Measurements.image import Image
 
-    sample_idx = 0
-    image_data = data_dir / "Edge" / sample_names[sample_idx]
+    sample_idx = 3
+    # image_data = data_dir / "Edge" / sample_names[sample_idx]
+    image_data = data_dir / "Coated" / sample_names[sample_idx]
     image = Image(image_data)
+    image.plot_point(33, 11)
     #image.plot_image(quantity="p2p", img_extent=[-10, 30, 0, 20])
     image.plot_image(quantity="p2p")
 
@@ -187,7 +213,8 @@ if __name__ == '__main__':
 
     # eval_point = (20, 10)  # used for s1-s3
     # eval_point = (33, 11)  # s4
-    eval_point = (42, 20)
+    # eval_point = (42, 20)
+    eval_point = (54, 17)
 
     # n_sub = tmm_eval(sub_image=image, eval_point=eval_point, en_plot=True)
 
@@ -208,6 +235,9 @@ if __name__ == '__main__':
 
     for fig_label in plt.get_figlabels():
         plt.figure(fig_label)
-        plt.legend()
+        ax = plt.gca()
+        handles, labels = ax.get_legend_handles_labels()
+        if labels:
+            plt.legend()
 
     plt.show()
