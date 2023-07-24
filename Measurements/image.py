@@ -788,6 +788,7 @@ class Image:
             map_ = {"0": s1, "3": s4}
 
             return map_[str(s_idx)]
+
         s1_r1 = array([2.76E+06, 2.76E+06, 3.15E+06, 3.68E+06, 4.20E+06, 4.15E+06,
                        3.92E+06, 4.31E+06, 4.31E+06, 4.41E+06, 4.53E+06, 4.31E+06])
         s1_r2 = array([3.46E+06, 3.46E+06, 3.15E+06, 4.90E+06, 4.41E+06, 4.20E+06,
@@ -806,7 +807,7 @@ class Image:
                 "s1_r1": s1_r1, "s1_r2": s1_r2, "s1_r3": s1_r3, "s1_r4": s1_r4}
 
         if "flipped" not in str(self.data_path):
-            slice_ = slice(0, 10)
+            slice_ = slice(0, 12)
             vals = map_[f"s{s_idx + 1}_r{row_id}"][slice_]
         else:
             vals = array([10.1, 4.69, 0.682, 12.9, 10.3, 10.7, 10.7, 9.06, 0.937]) * 1e3
@@ -860,9 +861,8 @@ class Image:
 
             segments_ = []
             for segment_idx in range(segment_cnt_):
-                pl = (p0_[0] - segment_idx * line_len_, p0_[1])  # first point of arrow
-
-                pr = p0_[0] - (segment_idx + 1) * line_len_, p0_[1] + arrow_height  # second point of arrow
+                pl = p0_[0] - segment_idx * line_len_, p0_[1] - arrow_height/2  # left point of diagonal
+                pr = p0_[0] - (segment_idx + 1) * line_len_, p0_[1] + arrow_height/2  # right point
                 print(f"segment: {pl}, {pr}")
                 segments_.append((pl, pr))
 
@@ -877,11 +877,18 @@ class Image:
         if self.sample_idx == 3:
             line_len = 3.5  # s4
         else:
-            line_len = 3.5  # 4.0 # s2
+            # line_len = 3.5  # 4.0 # s2
+            line_len = 3  # 4.0 # s2
 
         if p0 is None:
+            """
+            p0x_s1:
+            measured based on photo and p2p image / laser pointer 
+            (39: border at substrate / coated substrate, 3.1: distance border to start of row 1) (mm)
+            """
+            p0x_s1 = 37 - 3  # p0x_s1 = 39 - 3.1
             p0_map_ = {"s1": (33, 15), "s4_13": (2, 13), "s4_46": (30, 12), "s4_r3": (37, 6), "s2_r2": (44, 15.5),
-                       "s1_r4": (30.5, -1.5), "s1_r3": (30.5, 3.0), "s1_r2": (30.5, 8.5), "s1_r1": (30.5, 13.5)}
+                       "s1_r4": (p0x_s1, -1.5), "s1_r3": (p0x_s1, 3), "s1_r2": (p0x_s1, 8.5), "s1_r1": (p0x_s1, 13.5)}
             p0 = p0_map_[f"s{self.sample_idx + 1}_r{row_idx}"]
 
         segments, thz_cond_vals = {}, {}
@@ -911,14 +918,13 @@ class Image:
             _4pp_vs_thz_ax.set_ylabel("Conductivity THz measurement (S/m)")
 
             res = polyfit(_4pp_vals, thz_cond_vals["0"], 1)
-            # print(res)
 
-            x = np.linspace(0, 2e5, 1000)
-            # res = np.polyfit(_4pp_vals, thz_cond_vals["0"], 1, full=True)
+            x = np.linspace(np.min([_4pp_vals]), np.max([_4pp_vals]), 1000)
             z = res["polynomial"]
             fit = z[0] * x + z[1]
             r2 = "$R^2=$" + str(round(res["determination"], 2))
-            # ax.plot(x, fit, label=f"Linear fit ({np.round(z[0], 2)}x+{np.round(z[1])} S/m)\n" + r2)
+            sign = (z[1] > 0)*"+"
+            _4pp_vs_thz_ax.plot(x, fit, label=f"Linear fit ({np.round(z[0], 2)}x{sign}{np.round(z[1])} S/m)\n" + r2)
 
             fig = plt.figure("4pp")
             ax = fig.add_subplot(111)
@@ -933,8 +939,9 @@ class Image:
             ax.set_xlabel("Position idx")
 
             for dy in thz_cond_vals.keys():
-                plt.figure("4pp")
-                ax.plot(positions, thz_cond_vals[str(dy)], label="$\sigma_{THz}$(1.2 THz)" + f" dy={dy} mm")
+                if dy == "0":
+                    plt.figure("4pp")
+                    ax.plot(positions, thz_cond_vals[str(dy)], label="$\sigma_{THz}$(1.2 THz)" + f" dy={dy} mm")
 
             def plot_line_segment(segment_):
                 plt.figure(f"{self.name} {sample_labels[self.sample_idx]}")
@@ -1015,7 +1022,7 @@ if __name__ == '__main__':
 
     options = {"cbar_min": 1.4e4, "cbar_max": 1.70e4, "log_scale": False, "color_map": "viridis",
                "invert_x": False, "invert_y": False}  # s2 (idx 1) flipped
-    options = {"cbar_min": 1e6, "cbar_max": 10e6, "log_scale": False, "color_map": "viridis",
+    options = {"cbar_min": 1e6, "cbar_max": 10e6, "log_scale": True, "color_map": "viridis",
                "invert_x": True, "invert_y": False}  # s2 (idx 1) flipped
 
     film_image = Image(meas_dir, sub_image, sample_idx, options)
@@ -1023,9 +1030,9 @@ if __name__ == '__main__':
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    film_image.plot_image(quantity="p2p")
-    # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    # film_image.thz_vs_4pp(row_idx=1)
+    # film_image.plot_image(quantity="p2p")
+    film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
+    film_image.thz_vs_4pp(row_idx=3)
     # film_image.thz_vs_4pp(row_idx=2, p0=(40, 10.5))  # s2
     # film_image.thz_vs_4pp(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
     # film_image.thz_vs_4pp(row_idx=2, p0=(43, 4))  # s2 from corr img.

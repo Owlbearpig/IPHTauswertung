@@ -65,7 +65,7 @@ THz = 10 ** 12
 ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 
 if 'posix' in cur_os:
-    data_dir = Path(r"/home/alex/Data/IPHT")
+    data_dir = Path(r"/home/ftpuser/ftp/Data/IPHT")
 else:
     data_dir = Path(r"E:\measurementdata\IPHT")
     try:

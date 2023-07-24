@@ -234,24 +234,46 @@ def chill():
 
 # Polynomial Regression
 def polyfit(x, y, degree):
+    def _fit(x_, y_):
+        res = {}
+
+        coeffs = np.polyfit(x_, y_, degree)
+
+        # Polynomial Coefficients
+        res['polynomial'] = coeffs.tolist()
+
+        # r-squared
+        p = np.poly1d(coeffs)
+        # fit values, and mean
+        yhat = p(x_)  # or [p(z) for z in x]
+        ybar = np.sum(y_) / len(y_)  # or sum(y)/len(y)
+        ssreg = np.sum((yhat - ybar) ** 2)  # or sum([ (yihat - ybar)**2 for yihat in yhat])
+        sstot = np.sum((y_ - ybar) ** 2)  # or sum([ (yi - ybar)**2 for yi in y])
+
+        res['determination'] = ssreg / sstot
+
+        return res
+
+    def _remove_outlier(x_, y_):
+        # len(x_) == len(y_)
+
+        max_R, x_best, y_best = 0, None, None
+        for i in range(len(x_)):
+            x_test, y_test = np.delete(x_, i), np.delete(y_, i)
+
+            res = _fit(x_test, y_test)
+            if res["determination"] > max_R:
+                max_R = res["determination"]
+                x_best, y_best = x_test, y_test
+
+        return x_best, y_best
+
     # https://stackoverflow.com/questions/893657/how-do-i-calculate-r-squared-using-python-and-numpy
-    results = {}
+
     slice_ = y > 1.5e5
     x, y = x[slice_], y[slice_]
-    coeffs = np.polyfit(x, y, degree)
-
-     # Polynomial Coefficients
-    results['polynomial'] = coeffs.tolist()
-
-    # r-squared
-    p = np.poly1d(coeffs)
-    # fit values, and mean
-    yhat = p(x)                         # or [p(z) for z in x]
-    ybar = np.sum(y)/len(y)          # or sum(y)/len(y)
-    ssreg = np.sum((yhat-ybar)**2)   # or sum([ (yihat - ybar)**2 for yihat in yhat])
-    sstot = np.sum((y - ybar)**2)    # or sum([ (yi - ybar)**2 for yi in y])
-
-    results['determination'] = ssreg / sstot
+    x, y = _remove_outlier(x, y)
+    results = _fit(x, y)
 
     return results
 
