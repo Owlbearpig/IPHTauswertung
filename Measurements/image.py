@@ -808,7 +808,7 @@ class Image:
                 "s1_r1": s1_r1, "s1_r2": s1_r2, "s1_r3": s1_r3, "s1_r4": s1_r4}
 
         if "flipped" not in str(self.data_path):
-            slice_ = slice(0, 11)
+            slice_ = slice(0, 12)
             vals = map_[f"s{s_idx + 1}_r{row_id}"][slice_]
         else:
             vals = array([10.1, 4.69, 0.682, 12.9, 10.3, 10.7, 10.7, 9.06, 0.937]) * 1e3
@@ -842,10 +842,10 @@ class Image:
         (39: border at substrate / coated substrate, 3.1: distance border to start of row 1) (mm)
         """
         p0x_s1 = 37 - 3  # p0x_s1 = 39 - 3.1
-        #p0x_s1 = 34
+
         p0_map_ = {"s1": (33, 15), "s4_13": (2, 13), "s4_46": (30, 12), "s4_r3": (37, 6), "s2_r2": (44, 15.5),
                    # "s1_r4": (p0x_s1, -1.5), "s1_r3": (p0x_s1, 3), "s1_r2": (p0x_s1, 8.5), "s1_r1": (p0x_s1, 13.5),
-                   "s1_r4": (p0x_s1, 1.5), "s1_r3": (p0x_s1, 3), "s1_r2": (p0x_s1, 8.5), "s1_r1": (p0x_s1, 13.5),
+                   "s1_r4": (p0x_s1, -2.5), "s1_r3": (p0x_s1, 3.5), "s1_r2": (p0x_s1, 8.5), "s1_r1": (p0x_s1, 13.5),
                    }
         p0 = p0_map_[f"s{self.sample_idx + 1}_r{row_idx_}"]
 
@@ -1060,13 +1060,13 @@ if __name__ == '__main__':
     # film_image.plot_image(quantity="p2p")
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    film_image.thz_vs_4pp(row_idx=1, segment_width=0)
+    film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=2, p0=(40, 10.5))  # s2
     # film_image.thz_vs_4pp(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
     # film_image.thz_vs_4pp(row_idx=2, p0=(43, 4))  # s2 from corr img.
     # film_image.thz_vs_4pp(row_idx=3, p0=(37, 6)) # s4
     # film_image.correlation_image(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
-    film_image.correlation_image(row_idx=1, segment_width=0)
+    film_image.correlation_image(row_idx=4, segment_width=0)
     # film_image.correlation_image(row_idx=3, p0=(37, 6))  # s4
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 

@@ -272,7 +272,7 @@ def polyfit(x, y, degree):
 
     slice_ = y > 1.5e5
     x, y = x[slice_], y[slice_]
-    x, y = _remove_outlier(x, y)
+    # x, y = _remove_outlier(x, y)
     results = _fit(x, y)
 
     return results
