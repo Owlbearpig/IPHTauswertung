@@ -94,7 +94,8 @@ class Image:
         parts = self.sams[0].filepath.parts
         if self.sample_idx is None:
             self.sample_idx = sample_names.index(parts[-2])
-        self.name = f"Sample {self.sample_idx + 1} {parts[-3]}"
+        #self.name = f"Sample {self.sample_idx + 1} {parts[-3]}"
+        self.name = f"Sample {self.sample_idx + 1}"
 
         sample_data_td = self.sams[0].get_data_td()
         samples = int(sample_data_td.shape[0])
@@ -478,7 +479,7 @@ class Image:
         elif quantity == "Reference phase":
             label = " interpolated at " + str(np.round(selected_freq, 3)) + " THz"
         elif quantity.lower() == "power":
-            label = f"({selected_freq[0]}-{selected_freq[1]}) THz"
+            label = f" ({selected_freq[0]}-{selected_freq[1]}) THz"
         elif quantity.lower() == "loss":
             label = " function value (log10)"
         else:
@@ -554,7 +555,7 @@ class Image:
             cbar.set_label("$\log_{10}$($\sigma$) " + label, rotation=270, labelpad=30)
             cbar.set_label("$\sigma$ (S/m) " + label, rotation=270, labelpad=30)
         else:
-            cbar.set_label(f"{quantity}" + label, rotation=270, labelpad=30)
+            cbar.set_label(f"{quantity}".title() + label, rotation=270, labelpad=30)
 
     def get_measurement(self, x, y):
         closest_sam, best_fit_val = None, np.inf
@@ -807,7 +808,7 @@ class Image:
                 "s1_r1": s1_r1, "s1_r2": s1_r2, "s1_r3": s1_r3, "s1_r4": s1_r4}
 
         if "flipped" not in str(self.data_path):
-            slice_ = slice(0, 12)
+            slice_ = slice(0, 11)
             vals = map_[f"s{s_idx + 1}_r{row_id}"][slice_]
         else:
             vals = array([10.1, 4.69, 0.682, 12.9, 10.3, 10.7, 10.7, 9.06, 0.937]) * 1e3
@@ -827,14 +828,30 @@ class Image:
         area_indices = list(product(x_range, y_range))
 
         grid_vals = self._calc_grid_vals(quantity="Conductivity")
-        conductivities = [grid_vals[p] for p in area_indices]
-        print(conductivities)
+        conductivities = array([grid_vals[p] for p in area_indices], dtype=float)
+        print(f"segment: {line_segment}, conductivities: {conductivities}")
         avg_val = np.sum(conductivities) / len(conductivities)
-        print(avg_val, "\n")
+        print(f"mean: {avg_val}", "\n")
 
         return avg_val
 
-    def thz_vs_4pp(self, row_idx, p0=None, en_plot=True):
+    def _p0_map(self, row_idx_):
+        """
+        p0x_s1:
+        measured based on photo and p2p image / laser pointer
+        (39: border at substrate / coated substrate, 3.1: distance border to start of row 1) (mm)
+        """
+        p0x_s1 = 37 - 3  # p0x_s1 = 39 - 3.1
+        #p0x_s1 = 34
+        p0_map_ = {"s1": (33, 15), "s4_13": (2, 13), "s4_46": (30, 12), "s4_r3": (37, 6), "s2_r2": (44, 15.5),
+                   # "s1_r4": (p0x_s1, -1.5), "s1_r3": (p0x_s1, 3), "s1_r2": (p0x_s1, 8.5), "s1_r1": (p0x_s1, 13.5),
+                   "s1_r4": (p0x_s1, 1.5), "s1_r3": (p0x_s1, 3), "s1_r2": (p0x_s1, 8.5), "s1_r1": (p0x_s1, 13.5),
+                   }
+        p0 = p0_map_[f"s{self.sample_idx + 1}_r{row_idx_}"]
+
+        return p0
+
+    def thz_vs_4pp(self, row_idx, segment_width=0, p0=None, en_plot=True, corr_measure="r2"):
         def scale(val, dst=None):
             """
             Scale the given value to the scale of dst.
@@ -877,22 +894,13 @@ class Image:
         if self.sample_idx == 3:
             line_len = 3.5  # s4
         else:
-            # line_len = 3.5  # 4.0 # s2
-            line_len = 3  # 4.0 # s2
+            line_len = 3.5  # 4.0 # s2
 
         if p0 is None:
-            """
-            p0x_s1:
-            measured based on photo and p2p image / laser pointer 
-            (39: border at substrate / coated substrate, 3.1: distance border to start of row 1) (mm)
-            """
-            p0x_s1 = 37 - 3  # p0x_s1 = 39 - 3.1
-            p0_map_ = {"s1": (33, 15), "s4_13": (2, 13), "s4_46": (30, 12), "s4_r3": (37, 6), "s2_r2": (44, 15.5),
-                       "s1_r4": (p0x_s1, -1.5), "s1_r3": (p0x_s1, 3), "s1_r2": (p0x_s1, 8.5), "s1_r1": (p0x_s1, 13.5)}
-            p0 = p0_map_[f"s{self.sample_idx + 1}_r{row_idx}"]
+            p0 = self._p0_map(row_idx)
 
         segments, thz_cond_vals = {}, {}
-        for dy in range(4):
+        for dy in range(2):
             segments[str(dy)] = line_segments(segment_cnt, p0, line_len, dy)
 
             thz_cond = []
@@ -907,22 +915,23 @@ class Image:
             # positions = np.arange(22, 13, -1)
             positions = np.arange(14, 23, 1)
 
+        res = polyfit(_4pp_vals, thz_cond_vals[str(segment_width)], 1)
+        x = np.linspace(np.min([_4pp_vals]), np.max([_4pp_vals]), 1000)
+        z = res["polynomial"]
+        fit = z[0] * x + z[1]
+        r2 = "$R^2=$" + str(round(res["determination"], 2))
+
         if en_plot:
             fig = plt.figure("THz vs 4pp")
             _4pp_vs_thz_ax = fig.add_subplot(111)
             _4pp_vs_thz_ax.set_title("$\sigma_{THz}$(1.2 THz) vs $\sigma_{4pp}$(DC)")
             _4pp_vs_thz_ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
             _4pp_vs_thz_ax.xaxis.set_major_formatter(ticker.FuncFormatter(fmt))
-            _4pp_vs_thz_ax.scatter(_4pp_vals, thz_cond_vals["0"], color="red", s=25, label="Data")
+            _4pp_vs_thz_ax.scatter(_4pp_vals, thz_cond_vals[str(segment_width)],
+                                   color="red", s=25, label=f"Data segment_width: {segment_width} mm")
             _4pp_vs_thz_ax.set_xlabel("Conductivity 4pp measurement (S/m)")
             _4pp_vs_thz_ax.set_ylabel("Conductivity THz measurement (S/m)")
 
-            res = polyfit(_4pp_vals, thz_cond_vals["0"], 1)
-
-            x = np.linspace(np.min([_4pp_vals]), np.max([_4pp_vals]), 1000)
-            z = res["polynomial"]
-            fit = z[0] * x + z[1]
-            r2 = "$R^2=$" + str(round(res["determination"], 2))
             sign = (z[1] > 0)*"+"
             _4pp_vs_thz_ax.plot(x, fit, label=f"Linear fit ({np.round(z[0], 2)}x{sign}{np.round(z[1])} S/m)\n" + r2)
 
@@ -939,46 +948,63 @@ class Image:
             ax.set_xlabel("Position idx")
 
             for dy in thz_cond_vals.keys():
-                if dy == "0":
+                if dy == str(segment_width):
                     plt.figure("4pp")
                     ax.plot(positions, thz_cond_vals[str(dy)], label="$\sigma_{THz}$(1.2 THz)" + f" dy={dy} mm")
 
-            def plot_line_segment(segment_):
+            def _plot_line_segment(segment_, segment_idx_=None):
                 plt.figure(f"{self.name} {sample_labels[self.sample_idx]}")
                 img_ax = plt.gca()
                 x1 = (segment_[0][0], segment_[1][0])
                 y1 = (segment_[0][1], segment_[1][1])
-                img_ax.vlines(x=x1[0], ymin=y1[0] - 1, ymax=y1[0] + 1, colors="red", lw=3, zorder=1)
-                img_ax.vlines(x=x1[1], ymin=y1[1] - 1, ymax=y1[1] + 1, colors="red", lw=3, zorder=1)
+                img_ax.vlines(x=x1[0], ymin=y1[0] - 1, ymax=y1[0] + 1, colors="red", lw=2, zorder=1)
+                img_ax.vlines(x=x1[1], ymin=y1[1] - 1, ymax=y1[1] + 1, colors="red", lw=2, zorder=1)
                 img_ax.plot(x1, y1, color="red", zorder=1)
+                text_pos = ((x1[1] + x1[0]) / 2, y1[0] + 1)
+                if segment_idx_ is not None:
+                    img_ax.text(*text_pos, s=str(segment_idx_ + 1), color="red", horizontalalignment="center")
+                    if segment_idx_ == 0:
+                        label_pos = (x1[0] + 10, y1[0])
+                        img_ax.text(*label_pos, color="red", s=f"Row {row_idx}",
+                                    horizontalalignment="left", verticalalignment="center")
 
-            for segment in segments["0"]:
-                plot_line_segment(segment)
+            for segment_idx, segment in enumerate(segments[str(segment_width)]):
+                _plot_line_segment(segment, segment_idx)
 
-        thz_slope = np.sign(np.diff(thz_cond_vals["0"]))
-        _4pp_slope = np.sign(np.diff(_4pp_val_scaled))
+        if corr_measure == "r2":
+            return res["determination"]
+        else:
+            thz_slope = np.sign(np.diff(thz_cond_vals[str(segment_width)]))
+            _4pp_slope = np.sign(np.diff(_4pp_val_scaled))
 
-        return np.sum(thz_slope * _4pp_slope < 0)
+            return np.sum(thz_slope * _4pp_slope < 0)
 
-    def correlation_image(self, row_idx, p0=None):
+    def correlation_image(self, row_idx, center=None, segment_width=0):
         fig = plt.figure("correlation grid")
         ax = fig.add_subplot(111)
-        ax.set_title("Summed 4pp and THz anticorrelation")
-        if p0 is None:
-            x_, y_ = [32, 42], [0, 15]
-        else:
-            x_, y_ = [int(p0[0] - 7), int(p0[0] + 7)], [int(p0[1] - 7), int(p0[1] + 7)]
+        ax.set_title("R2 for different row positions")
 
-        corr_grid = np.zeros((x_[1] - x_[0], y_[1] - y_[0]))
-        for i, x in enumerate(range(*x_)):
-            for j, y in enumerate(range(*y_)):
-                corr = film_image.thz_vs_4pp(row_idx=row_idx, p0=(x, y), en_plot=False)
+        if center is None:
+            center = self._p0_map(row_idx)
+
+        w, h, ds = 5, 5, 0.5
+        x_range, y_range = [int(center[0] - w), int(center[0] + w)], [int(center[1] - h), int(center[1] + h)]
+        x_range = np.clip(x_range, *self.image_info["extent"][0:2])
+        y_range = np.clip(y_range, *self.image_info["extent"][2:4])
+
+        x, y = np.arange(*x_range, ds), np.arange(*y_range, ds)
+        corr_grid = np.zeros((len(x), len(y)))
+        for i, p0_x in enumerate(x):
+            for j, p0_y in enumerate(y):
+                corr = film_image.thz_vs_4pp(row_idx=row_idx, p0=(p0_x, p0_y), en_plot=False,
+                                             corr_measure="r2", segment_width=segment_width)
                 corr_grid[i, j] = corr
-        img = ax.imshow(corr_grid.transpose((1, 0)), extent=[*x_, *y_], origin="lower", vmin=1, vmax=9)
+                print(f"=> {p0_x}, {p0_y}, R2={corr}")
+        img = ax.imshow(corr_grid.transpose((1, 0)), extent=[*x_range, *y_range], origin="lower", vmin=-0.01, vmax=1.01)
         ax.set_xlabel("x (mm)")
         ax.set_ylabel("y (mm)")
         cbar = fig.colorbar(img)
-        cbar.set_label(f"Summed anticorrelation", rotation=270, labelpad=30)
+        cbar.set_label(f"R2", rotation=270, labelpad=30)
 
         if self.options["invert_x"]:
             ax.invert_xaxis()
@@ -992,10 +1018,11 @@ if __name__ == '__main__':
     meas_dir_sub = data_dir / "Uncoated" / "s1"
     sub_image = Image(data_path=meas_dir_sub)
 
-    # meas_dir = data_dir / "Edge" / sample_names[sample_idx]
+    # meas_dir = data_dir / "Coated" / sample_names[sample_idx]
     # meas_dir = data_dir / "Edge_4pp2_flipped" / (sample_names[sample_idx] + "_accident")
     # meas_dir = data_dir / "Edge_4pp2_flipped" / sample_names[sample_idx]
     meas_dir = data_dir / "s1_new_area_20_07_2023" / "Image0"
+
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
                                   [-10, -6, -10, 30],
@@ -1022,7 +1049,7 @@ if __name__ == '__main__':
 
     options = {"cbar_min": 1.4e4, "cbar_max": 1.70e4, "log_scale": False, "color_map": "viridis",
                "invert_x": False, "invert_y": False}  # s2 (idx 1) flipped
-    options = {"cbar_min": 1e6, "cbar_max": 10e6, "log_scale": True, "color_map": "viridis",
+    options = {"cbar_min": 1e6, "cbar_max": 10e6, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": False}  # s2 (idx 1) flipped
 
     film_image = Image(meas_dir, sub_image, sample_idx, options)
@@ -1031,13 +1058,15 @@ if __name__ == '__main__':
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
     # film_image.plot_image(quantity="p2p")
+    # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    film_image.thz_vs_4pp(row_idx=3)
+    film_image.thz_vs_4pp(row_idx=1, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=2, p0=(40, 10.5))  # s2
     # film_image.thz_vs_4pp(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
     # film_image.thz_vs_4pp(row_idx=2, p0=(43, 4))  # s2 from corr img.
     # film_image.thz_vs_4pp(row_idx=3, p0=(37, 6)) # s4
     # film_image.correlation_image(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
+    film_image.correlation_image(row_idx=1, segment_width=0)
     # film_image.correlation_image(row_idx=3, p0=(37, 6))  # s4
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
