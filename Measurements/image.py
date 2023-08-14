@@ -801,17 +801,19 @@ class Image:
 
         s2_r2 = array([1.13, 3.09, 7.35, 4.56, 22.6, 2.31, 7.82, 10.9, 13.3, 10.4, 9.13,
                        9.57, 8.54, 10.1, 4.69, 0.682, 12.9, 10.3, 10.7, 10.7, 9.06, 0.937, 0.421]) * 1e3
-        s4_r3 = array([2.08, 5.64, 5.44, 3.43, 6.51, 16.6, 10.8, 11.5, 12.7, 9.5, 6.29]) * 1e4
+        # s4_r3 = array([2.08, 5.64, 5.44, 3.43, 6.51, 16.6, 10.8, 11.5, 12.7, 9.5, 6.29]) * 1e4
+        s4_r3 = array([1.22E+03, 6.21E+03, 6.32E+03, 8.08E+03, 1.04E+04, 5.53E+03,
+                       1.52E+04, 1.88E+04, 1.72E+04, 1.54E+04, 1.11E+04, 4.47E+03, ])
+        s4_r4 = array([1.07E+03, 3.87E+03, 5.43E+03, 7.96E+03, 9.16E+03, 9.21E+03,
+                       1.45E+04, 1.40E+04, 1.36E+04, 1.09E+04, 8.79E+03, 4.36E+03, ])
+        s4_r5 = array([3.67E+03, 6.79E+03, 6.39E+03, 6.52E+03, 6.10E+03, 9.96E+03,
+                       8.88E+03, 8.72E+03, 8.61E+03, 8.40E+03, 7.09E+03, 4.61E+03, ])
 
-        # map_ = {"s2_r2": s2_r2[:11], "s4_r3": s4_r3}
-        map_ = {"s2_r2": s2_r2, "s4_r3": s4_r3,
+        map_ = {"s2_r2": s2_r2, "s4_r3": s4_r3, "s4_r4": s4_r4, "s4_r5": s4_r5,
                 "s1_r1": s1_r1, "s1_r2": s1_r2, "s1_r3": s1_r3, "s1_r4": s1_r4}
 
-        if "flipped" not in str(self.data_path):
-            slice_ = slice(0, 12)
-            vals = map_[f"s{s_idx + 1}_r{row_id}"][slice_]
-        else:
-            vals = array([10.1, 4.69, 0.682, 12.9, 10.3, 10.7, 10.7, 9.06, 0.937]) * 1e3
+        slice_ = slice(0, 12)
+        vals = map_[f"s{s_idx + 1}_r{row_id}"][slice_]
 
         return vals
 
@@ -843,9 +845,10 @@ class Image:
         """
         p0x_s1 = 37 - 3  # p0x_s1 = 39 - 3.1
 
-        p0_map_ = {"s1": (33, 15), "s4_13": (2, 13), "s4_46": (30, 12), "s4_r3": (37, 6), "s2_r2": (44, 15.5),
+        p0_map_ = {"s1": (33, 15), "s4_13": (2, 13), "s4_46": (30, 12), "s2_r2": (44, 15.5),
                    # "s1_r4": (p0x_s1, -1.5), "s1_r3": (p0x_s1, 3), "s1_r2": (p0x_s1, 8.5), "s1_r1": (p0x_s1, 13.5),
                    "s1_r4": (p0x_s1, -2.5), "s1_r3": (p0x_s1, 3.5), "s1_r2": (p0x_s1, 8.5), "s1_r1": (p0x_s1, 13.5),
+                   "s4_r3_old": (37, 6), "s4_r3": (35, -2.00), "s4_r4": (35, -5.00), "s4_r5": (35, 1.50),
                    }
         p0 = p0_map_[f"s{self.sample_idx + 1}_r{row_idx_}"]
 
@@ -1021,7 +1024,8 @@ if __name__ == '__main__':
     # meas_dir = data_dir / "Coated" / sample_names[sample_idx]
     # meas_dir = data_dir / "Edge_4pp2_flipped" / (sample_names[sample_idx] + "_accident")
     # meas_dir = data_dir / "Edge_4pp2_flipped" / sample_names[sample_idx]
-    meas_dir = data_dir / "s1_new_area_20_07_2023" / "Image0"
+    # meas_dir = data_dir / "s1_new_area_20_07_2023" / "Image0"
+    meas_dir = data_dir / "s4_new_area" / "Image0"
 
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
@@ -1049,8 +1053,8 @@ if __name__ == '__main__':
 
     options = {"cbar_min": 1.4e4, "cbar_max": 1.70e4, "log_scale": False, "color_map": "viridis",
                "invert_x": False, "invert_y": False}  # s2 (idx 1) flipped
-    options = {"cbar_min": 1e6, "cbar_max": 10e6, "log_scale": False, "color_map": "viridis",
-               "invert_x": True, "invert_y": False}  # s2 (idx 1) flipped
+    options = {"cbar_min": 1.5e5, "cbar_max": 3.5e5, "log_scale": False, "color_map": "viridis",
+               "invert_x": True, "invert_y": False}
 
     film_image = Image(meas_dir, sub_image, sample_idx, options)
     # s1, s2, s3 = [-10, 50, -3, 27]
@@ -1060,13 +1064,13 @@ if __name__ == '__main__':
     # film_image.plot_image(quantity="p2p")
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    film_image.thz_vs_4pp(row_idx=4, segment_width=0)
+    # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=2, p0=(40, 10.5))  # s2
     # film_image.thz_vs_4pp(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
     # film_image.thz_vs_4pp(row_idx=2, p0=(43, 4))  # s2 from corr img.
     # film_image.thz_vs_4pp(row_idx=3, p0=(37, 6)) # s4
     # film_image.correlation_image(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
-    film_image.correlation_image(row_idx=4, segment_width=0)
+    # film_image.correlation_image(row_idx=4, segment_width=0)
     # film_image.correlation_image(row_idx=3, p0=(37, 6))  # s4
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
