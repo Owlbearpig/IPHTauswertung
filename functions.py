@@ -233,7 +233,7 @@ def chill():
 
 
 # Polynomial Regression
-def polyfit(x, y, degree):
+def polyfit(x, y, degree, remove_worst_outlier=False):
     def _fit(x_, y_):
         res = {}
 
@@ -270,9 +270,11 @@ def polyfit(x, y, degree):
 
     # https://stackoverflow.com/questions/893657/how-do-i-calculate-r-squared-using-python-and-numpy
 
-    slice_ = y > 1.5e5
+    slice_ = y > 0 #1.5e5
+    #slice_ = y > 1.5e5
     x, y = x[slice_], y[slice_]
-    # x, y = _remove_outlier(x, y)
+    if remove_worst_outlier:
+        x, y = _remove_outlier(x, y)
     results = _fit(x, y)
 
     return results
