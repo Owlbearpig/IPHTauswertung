@@ -819,13 +819,17 @@ class Image:
             plt.semilogy(s4_r5, label="s4_r5")
             plt.legend()
 
-        map_ = {"s2_r2": s2_r2, "s4_r3": s4_r3_old, "s4_r4": s4_r4, "s4_r5": s4_r5,
-                "s1_r1": s1_r1, "s1_r2": s1_r2, "s1_r3": s1_r3, "s1_r4": s1_r4}
+        map_ = {"s1_r1": s1_r1, "s1_r2": s1_r2, "s1_r3": s1_r3, "s1_r4": s1_r4,
+                "s2_r2": s2_r2,
+                "s4_r3": s4_r3, "s4_r4": s4_r4, "s4_r5": s4_r5,
+                "s4_r3_old": s4_r3_old,
+                }
 
-        slice_ = slice(0, 11)
-        vals = map_[f"s{s_idx + 1}_r{row_id}"][slice_]
+        #slice_ = slice(0, 12)
+        #vals = map_[f"s{s_idx + 1}_r{row_id}"][slice_]
+        vals = map_[f"s{s_idx + 1}_r{row_id}"]
 
-        return vals
+        return vals[1:]
 
     def _average_area(self, line_segment):
         p0, p1 = line_segment
@@ -858,9 +862,12 @@ class Image:
         p0_map_ = {"s1": (33, 15), "s4_13": (2, 13), "s4_46": (30, 12), "s2_r2": (44, 15.5),
                    # "s1_r4": (p0x_s1, -1.5), "s1_r3": (p0x_s1, 3), "s1_r2": (p0x_s1, 8.5), "s1_r1": (p0x_s1, 13.5),
                    "s1_r4": (p0x_s1, -2.5), "s1_r3": (p0x_s1, 3.5), "s1_r2": (p0x_s1, 8.5), "s1_r1": (p0x_s1, 13.5),
-                   "s4_r3_old": (37, 6),
-                   "s4_r3": (36.5, -3.50), "s4_r4": (37.5, -5.50), "s4_r5": (37, 0.00),
-                   # "s4_r3": (35, -2.00), "s4_r4": (35, -5.00), "s4_r5": (35, 1.50),
+                   "s4_r3_old": (36.5, -3.50),  # "s4_r3_old": (37, 6), original
+
+                   # "s4_r3": (35, -2.00), "s4_r4": (35, -5.00), "s4_r5": (35, 1.50), # measured
+                   #"s4_r3": (37, -3.50),  "s4_r5": (37, 0.00), "s4_r4": (37.5, -5.00), # original r5, r4 "works"
+                   # "s4_r3": (37.5, -2.50), "s4_r4": (37.5, -5.00), "s4_r5": (37.5, -0.50),  # best if not considering first point
+                   "s4_r3": (37, -2.50), "s4_r4": (37, -5.00), "s4_r5": (37, -0.50),
                    }
         p0 = p0_map_[f"s{self.sample_idx + 1}_r{row_idx_}"]
 
@@ -884,7 +891,7 @@ class Image:
         def line_segments(segment_cnt_, p0_, line_len_=None, arrow_height=None):
             if line_len_ is None:
                 s = 3.5  # mm
-                # s = 3.75  # mm
+                # s = 3.00  # mm
                 # line_len = 3 * s
                 line_len_ = 1 * s
 
@@ -894,8 +901,11 @@ class Image:
 
             segments_ = []
             for segment_idx in range(segment_cnt_):
-                pl = p0_[0] - segment_idx * line_len_, p0_[1] - arrow_height/2  # left point of diagonal
-                pr = p0_[0] - (segment_idx + 1) * line_len_, p0_[1] + arrow_height/2  # right point
+                dy_l = arrow_height * (segment_idx/segment_cnt_)
+                dy_r = arrow_height * ((segment_idx + 1) / segment_cnt_)
+
+                pl = p0_[0] - segment_idx * line_len_, p0_[1] + dy_l  # left point of diagonal
+                pr = p0_[0] - (segment_idx + 1) * line_len_, p0_[1] + dy_r  # right point
                 print(f"segment: {pl}, {pr}")
                 segments_.append((pl, pr))
 
@@ -907,13 +917,13 @@ class Image:
         segment_cnt = len(_4pp_vals)
         positions = range(1, segment_cnt + 1)
 
-        line_len = 3.5  # 4.0 # s2
+        line_len = 3.5 # 3.5  # 4.0 # s2
 
         if p0 is None:
             p0 = self._p0_map(row_idx)
 
         segments, thz_cond_vals = {}, {}
-        for dy in range(2):
+        for dy in range(1):
             segments[str(dy)] = line_segments(segment_cnt, p0, line_len, dy)
 
             thz_cond = []
@@ -985,7 +995,7 @@ class Image:
                 _plot_line_segment(segment, segment_idx)
 
         if corr_measure == "r2":
-            return res["determination"]
+            return res["determination"] * np.sign(res["polynomial"][0])
         else:
             thz_slope = np.sign(np.diff(thz_cond_vals[str(segment_width)]))
             _4pp_slope = np.sign(np.diff(_4pp_val_scaled))
@@ -1000,7 +1010,7 @@ class Image:
         if center is None:
             center = self._p0_map(row_idx)
 
-        w, h, ds = 5, 5, 0.5
+        w, h, ds = 7, 7, 0.5
         x_range, y_range = [int(center[0] - w), int(center[0] + w)], [int(center[1] - h), int(center[1] + h)]
         x_range = np.clip(x_range, *self.image_info["extent"][0:2])
         y_range = np.clip(y_range, *self.image_info["extent"][2:4])
@@ -1039,7 +1049,9 @@ if __name__ == '__main__':
     # meas_dir = data_dir / "s1_new_area" / "Image2_27_07_2023"  # 20avg
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # 0.5 mm
     # meas_dir = data_dir / "s3_new_area" / "Image0"
+
     meas_dir = data_dir / "s4_new_area" / "Image0"
+    # meas_dir = data_dir / "Edge_4pp2" / "s4" # old image
 
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
@@ -1078,12 +1090,8 @@ if __name__ == '__main__':
     # film_image.plot_image(quantity="p2p")
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    film_image.thz_vs_4pp(row_idx=3)
-    # film_image.thz_vs_4pp(row_idx=2, p0=(40, 10.5))  # s2
-    # film_image.thz_vs_4pp(row_idx=2, p0=(33.6, 10.5))  # s2 flipped
-    # film_image.thz_vs_4pp(row_idx=2, p0=(43, 4))  # s2 from corr img.
-    # film_image.thz_vs_4pp(row_idx=3, p0=(37, 6)) # s4
-    film_image.correlation_image(row_idx=3)  # s2 flipped
+    film_image.thz_vs_4pp(row_idx=5, segment_width=0)
+    film_image.correlation_image(row_idx=5, segment_width=0)
     # film_image.correlation_image(row_idx=4, segment_width=0)
     # film_image.correlation_image(row_idx=3, p0=(37, 6))  # s4
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
