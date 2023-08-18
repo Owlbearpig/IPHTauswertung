@@ -6,15 +6,15 @@ from consts import *
 from numpy import array
 import matplotlib.pyplot as plt
 from tmm_slim import coh_tmm
-from functions import do_ifft, do_fft, phase_correction, to_db, window
+from functions import do_ifft, do_fft, phase_correction, to_db, window, f_axis_idx_map
 from sub_eval import analytical_eval
 from mpl_settings import *
 
 
-def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_idx=None):
+def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range=None):
     sam_idx = sub_image.sample_idx
-    sub_td = sub_image.get_point(x=eval_point[0], y=eval_point[1], sub_offset=True, both=False)
-    sub_ref_td = sub_image.get_ref(both=False, coords=eval_point)
+    sub_td = sub_image.get_point(x=eval_point_[0], y=eval_point_[1], sub_offset=True, both=False)
+    sub_ref_td = sub_image.get_ref(both=False, coords=eval_point_)
 
     sub_td = window(sub_td, win_len=12, shift=0, en_plot=False)
     sub_ref_td = window(sub_ref_td, win_len=12, shift=0, en_plot=False)
@@ -31,27 +31,26 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
 
     d_list = [inf, d_sub, inf]
 
-    def calc_model(n_list):
+    freq_opt_idx = f_axis_idx_map(freqs, freq_range)
+
+    def calc_model(n_model):
+        n_list_ = array([one, n_model, one], dtype=complex).T
         ts_tmm_fd = np.zeros_like(freqs, dtype=complex)
-        for f_idx, freq in enumerate(freqs):
-            lam_vac = c_thz / freq
-            n = n_list[f_idx]
+        for f_idx_, freq_ in enumerate(freqs):
+            lam_vac = c_thz / freq_
+            n = n_list_[f_idx_]
             t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
-            ts_tmm_fd[f_idx] = t_tmm_fd
+            ts_tmm_fd[f_idx_] = t_tmm_fd
 
-        sam_tmm_fd = array([freqs, ts_tmm_fd * sub_ref_fd[:, 1] * phase_shift]).T
-        sam_tmm_td = do_ifft(sam_tmm_fd)
+        sam_tmm_fd_ = array([freqs, ts_tmm_fd * sub_ref_fd[:, 1] * phase_shift]).T
+        sam_tmm_td_ = do_ifft(sam_tmm_fd_)
 
-        return sam_tmm_td, sam_tmm_fd
+        return sam_tmm_td_, sam_tmm_fd_
 
     if analytical:
         n_sub = analytical_eval(sub_fd, sub_ref_fd)
-        if single_f_idx is not None:
-            return n_sub[single_f_idx]
 
-        n_list = array([one, n_sub, one]).T
-
-        sam_tmm_td, sam_tmm_fd = calc_model(n_list)
+        sam_tmm_td, sam_tmm_fd = calc_model(n_sub[:, 1])
         if en_plot:
             plt.figure("Spectrum")
             plt.plot(sam_tmm_fd[1:, 0], 20 * np.log10(np.abs(sam_tmm_fd[1:, 1])), label="Analytical TMM")
@@ -61,26 +60,30 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
 
             plt.figure("Time domain")
             plt.plot(sam_tmm_td[:, 0], sam_tmm_td[:, 1], label="Analytical TMM")
+
+        return n_sub
     else:
+        x, y = eval_point_[0], eval_point_[1]
+        sub_file = ROOT_DIR / "Evaluation" / f"n_sub_s{sub_image.sample_idx + 1}_{x}_{y}.npy"
         try:
-            n_sub = np.load(f"n_sub_s{sam_idx + 1}_{eval_point[0]}_{eval_point[1]}.npy")
+            n_sub = np.load(sub_file)
         except FileNotFoundError:
             # numerical optimization
             bounds = shgo_bounds_sub[sam_idx]
 
-            def cost(p, f_idx):
+            def cost(p, f_idx_):
                 n = array([1, p[0] + 1j * p[1], 1])
-                lam_vac = c_thz / freqs[f_idx]
+                lam_vac = c_thz / freqs[f_idx_]
                 t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
-                sam_tmm_fd = t_tmm_fd * sub_ref_fd[f_idx, 1] * phase_shift[f_idx]
+                sam_tmm_fd_ = t_tmm_fd * sub_ref_fd[f_idx_, 1] * phase_shift[f_idx_]
 
-                amp_loss = (np.abs(sam_tmm_fd) - np.abs(sub_fd[f_idx, 1])) ** 2
-                phi_loss = (np.angle(sam_tmm_fd) - np.angle(sub_fd[f_idx, 1])) ** 2
+                amp_loss = (np.abs(sam_tmm_fd_) - np.abs(sub_fd[f_idx_, 1])) ** 2
+                phi_loss = (np.angle(sam_tmm_fd_) - np.angle(sub_fd[f_idx_, 1])) ** 2
 
                 return amp_loss + phi_loss
 
             def optimize(f_idx_, max_iters=8):
-                iters = shgo_iters - 3
+                iters = initial_shgo_iters - 3
                 print(f"Frequency: {freqs[f_idx_]} (THz), (idx: {f_idx_})")
                 res = shgo(cost, bounds=bounds, args=(f_idx_,), iters=iters - 2)
                 while res.fun > 1e-10:
@@ -93,35 +96,32 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
 
                 return res
 
-            if single_f_idx is not None:
-                res = optimize(single_f_idx)
+            n_sub = np.zeros_like(freqs, dtype=complex)
+            for f_idx, freq in enumerate(freqs):
+                if f_idx not in freq_opt_idx:
+                    continue
 
-                return res.x[0] + 1j * res.x[1]
-            else:
-                n_sub = np.zeros(len(freqs), dtype=complex)
-                for f_idx, freq in enumerate(freqs):
-                    if freq < 0.15:
-                        res = optimize(f_idx, max_iters=5)
+                if freq < 0.15:
+                    res = optimize(f_idx, max_iters=5)
+                    n_sub[f_idx] = res.x[0] + 1j * res.x[1]
+                elif freq <= 4:
+                    res = optimize(f_idx, max_iters=8)
+                    n_sub[f_idx] = res.x[0] + 1j * res.x[1]
+                else:
+                    n_sub[f_idx] = n_sub[f_idx-1]
 
-                        n_sub[f_idx] = res.x[0] + 1j * res.x[1]
-                    elif freq <= 4:
-                        res = optimize(f_idx)
+            np.save(sub_file, n_sub)
 
-                        n_sub[f_idx] = res.x[0] + 1j * res.x[1]
-                    else:
-                        n_sub[f_idx] = n_sub[f_idx-1]
-
-        n_shgo = array([one, n_sub, one]).T
-
-        sam_tmm_shgo_td, sam_tmm_shgo_fd = calc_model(n_shgo)
+        sam_tmm_shgo_td, sam_tmm_shgo_fd = calc_model(n_sub)
 
         phi_tmm = phase_correction(sam_tmm_shgo_fd, disable=True, fit_range=(0.55, 1.0))
 
         absorption = 2*n_sub.imag*omega*THz/c0
 
-        n_tera = teralyzer_read_point(*eval_point)
+        # n_tera = teralyzer_read_point(*eval_point_)
 
-        label = f"{sub_image.name} (TMM) x={eval_point[0]} mm, y={eval_point[1]} mm"
+        label = f"{sub_image.name} (TMM) x={eval_point_[0]} mm, y={eval_point_[1]} mm"
+
         if en_plot:
             plt.figure("RI")
             plt.title("Complex refractive index substrates")
@@ -181,7 +181,7 @@ def tmm_eval(sub_image, eval_point, en_plot=False, analytical=False, single_f_id
 
             fig.tight_layout()  # otherwise the right y-label is slightly clipped
 
-    return n_sub
+    return array([freqs, n_sub], dtype=complex).T
 
 
 if __name__ == '__main__':

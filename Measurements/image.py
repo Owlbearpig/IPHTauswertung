@@ -8,7 +8,7 @@ from consts import *
 import numpy as np
 import matplotlib.ticker as ticker
 from mpl_settings import *
-from functions import do_fft, do_ifft, phase_correction, unwrap, window, polyfit
+from functions import do_fft, do_ifft, phase_correction, unwrap, window, polyfit, f_axis_idx_map
 from measurements import get_all_measurements, MeasurementType
 from tmm_slim import coh_tmm
 # from tmm import coh_tmm
@@ -169,21 +169,8 @@ class Image:
 
         return x, y
 
-    def _eval_conductivity(self, film_measurement, selected_freq_=None, **kwargs):
+    def _eval_conductivity(self, film_measurement, freq_range=None, **kwargs):
         point = film_measurement.position
-
-        if "d_film" not in kwargs.keys():
-            d_film = sample_thicknesses[self.sample_idx]
-        else:
-            d_film = kwargs["d_film"]
-
-        """ # calc mean of two layers sample_idx 2
-        if self.sample_idx == 2:
-            d_list = [inf, d_sub, *d_film, inf]
-        else:
-            d_list = [inf, d_sub, d_film, inf]
-        """
-        d_list = [inf, d_sub, d_film, inf]
 
         film_td = film_measurement.get_data_td()
         film_ref_td = self.get_ref(both=False, coords=point)
@@ -198,53 +185,37 @@ class Image:
 
         freqs = film_ref_fd[:, 0].real
         omega = 2 * pi * freqs
-        if selected_freq_ is None:
-            f_idx = None
-        else:
-            f_idx = np.argmin(np.abs(freqs - selected_freq_))
 
-        """
-        try:
-            sub_file = list((ROOT_DIR / "Evaluation").glob(f"**/n_sub_s{sample_idx + 1}*.npy"))[1]
-            n_sub = np.load(sub_file)
-        except IndexError:
-            position = measurement.position
-            n_sub = tmm_eval(self.sub_image, position)
-            np.save(ROOT_DIR / "Evaluation" / f"n_sub_s{self.sample_idx + 1}_{position[0]}_{position[1]}.npy", n_sub)
-        """
+        if "d_film" not in kwargs.keys():
+            d_film = film_thicknesses[self.sample_idx]
+        else:
+            d_film = kwargs["d_film"]
+
+        if "shgo_bounds" not in kwargs.keys():
+            shgo_bounds = shgo_bounds_film[self.sample_idx]
+        else:
+            shgo_bounds = kwargs["shgo_bounds"]
+
+        f_opt_idx = f_axis_idx_map(freqs, freq_range)
+
+        d_list = [inf, d_sub, d_film, inf]
 
         if self.options["one2onesub"]:
-            n_sub = tmm_eval(self.sub_image, point, single_f_idx=f_idx)
+            sub_point = point
         else:
-            try:
-                sub_file = ROOT_DIR / "Evaluation" / f"n_sub_s{self.sample_idx + 1}_10_10.npy"
-                n_sub = np.load(sub_file)
-            except FileNotFoundError:
-                position = (10, 10)
-                n_sub = tmm_eval(self.sub_image, position)
-                np.save(ROOT_DIR / "Evaluation" / f"n_sub_s{self.sample_idx + 1}_{position[0]}_{position[1]}.npy",
-                        n_sub)
+            sub_point = (10, 10)
 
-        if f_idx is not None:
-            n_sub = n_sub[f_idx]
-            print(f"Substrate refractive index: {np.round(n_sub, 3)}")
+        n_sub = tmm_eval(self.sub_image, sub_point, freq_range=freq_range)
+
+        if len(f_opt_idx) == 1:
+            print(f"Substrate refractive index: {np.round(n_sub[f_opt_idx, 1], 3)}")
 
         phase_shift = np.exp(-1j * (d_sub + np.sum(d_film)) * omega / c_thz)
 
         # film_ref_interpol = self._ref_interpolation(measurement, selected_freq_=selected_freq_, ret_cart=True)
 
         def cost(p, freq_idx_):
-            """
-            if self.sample_idx == 2:
-                n = array([1, n_sub, p[0] + 1j * p[1], p[2] + 1j * p[3], 1])
-            else:
-                n = array([1, n_sub, p[0] + 1j * p[1], 1])
-            """
-
-            if selected_freq_ is None:
-                n = array([1, n_sub[freq_idx_], p[0] + 1j * p[1], 1])
-            else:
-
+            n = array([1, n_sub[freq_idx_, 1], p[0] + 1j * p[1], 1])
 
             lam_vac = c_thz / freqs[freq_idx_]
             t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
@@ -257,47 +228,45 @@ class Image:
 
             return amp_loss + phi_loss
 
-        if "bounds" not in kwargs.keys():
-            bounds = shgo_bounds_film[self.sample_idx]
-        else:
-            bounds = kwargs["bounds"]
-        iters = shgo_iters - 3
-
-        freq_opt_idx = []
-        if f_idx is not None:
-            freq_opt_idx.append(f_idx)
-        else:
-            freq_bounds = kwargs["freq_bounds"]
-            f0_idx = np.argmin(np.abs(freqs - freq_bounds[0]))
-            f1_idx = np.argmin(np.abs(freqs - freq_bounds[1]))
-            freq_opt_idx.extend(np.arange(f0_idx, f1_idx+1))
-
-        n_opt, res = np.zeros_like(freq_opt_idx, dtype=complex), None
+        n_opt, res = np.zeros_like(freqs, dtype=complex), None
         sigma = n_opt.copy()
-        for i, f_idx_ in enumerate(freq_opt_idx):
-            res = shgo(cost, bounds=bounds, iters=iters - 2, args=(f_idx_, ))
-            while (res.fun > 1e-10) and (point[0] < 55):
-                iters += 1
-                res = shgo(cost, bounds=bounds, iters=iters, args=(f_idx_, ))
-                if iters >= 5:
-                    break
+        for f_idx_, freq in enumerate(freqs):
+            if f_idx_ not in f_opt_idx:
+                continue
 
-            n_opt[i] = res.x[0] + 1j * res.x[1]
-            epsilon = n_opt[i] ** 2
-            sigma[i] = 1j * (1 - epsilon) * epsilon_0 * omega[f_idx_] * THz
+            if freq > 1.2:
+                bounds_ = [(1, 175), (0, 175)]
+            else:
+                bounds_ = shgo_bounds.copy()
 
-            print(f"Result: {np.round(sigma[i] * 10 ** -6, 5)} (MS/m), "
-                  f"n: {np.round(n_opt[i], 3)}, at {np.round(freqs[f_idx_], 3)} THz, "
-                  f"loss: {res.fun}")
+            if freq <= 2.0:
+                if freq <= 0.20:
+                    res = shgo(cost, bounds=bounds_, args=(f_idx_,), iters=4)
+                else:
+                    iters = initial_shgo_iters - 3
+                    res = shgo(cost, bounds=bounds_, args=(f_idx_,), iters=iters - 2)
+                    while (res.fun > 1e-10) and (point[0] < 55):
+                        iters += 1
+                        res = shgo(cost, bounds=bounds_, args=(f_idx_,), iters=iters)
+                        if iters >= 4:
+                            break
+
+            n_opt[f_idx_] = res.x[0] + 1j * res.x[1]
+            epsilon = n_opt[f_idx_] ** 2
+            sigma[f_idx_] = 1j * (1 - epsilon) * epsilon_0 * omega[f_idx_] * THz
+
+            print(f"Result: {np.round(sigma[f_idx_] * 10 ** -6, 5)} (MS/m), "
+                  f"n: {np.round(n_opt[f_idx_], 3)}, at {np.round(freqs[f_idx_], 3)} THz, "
+                  f"loss: {res.fun}\n")
 
         if ("ret_loss" in kwargs.keys()) and kwargs["ret_loss"]:
             return res.fun
 
-        if "freq_bounds" in kwargs.keys():
-            freq_opt = freqs[freq_opt_idx]
-            return np.array([freq_opt, sigma]).T
+        if isinstance(freq_range, tuple):
+            freq_opt, sigma_opt = freqs[f_opt_idx], sigma[f_opt_idx]
+            return np.array([freq_opt, sigma_opt], dtype=complex).T
         else:
-            return sigma
+            return sigma[f_opt_idx]
 
     def _calc_power_grid(self, freq_range):
         def power(measurement_):
@@ -442,7 +411,7 @@ class Image:
         thicknesses = np.arange(0.000001, 0.001000, 0.000001)
         conductivities = np.zeros_like(thicknesses, dtype=complex)
         for idx, d in enumerate(thicknesses):
-            val = self._eval_conductivity(measurement, selected_freq_=freq, d_film=d)
+            val = self._eval_conductivity(measurement, freq, d_film=d)
             conductivities[idx] = val
 
         plt.figure("Conductivity vs thickness")
@@ -631,7 +600,7 @@ class Image:
                     best_fit_val = val
                     closest_ref = ref_meas
             dt = (closest_sam.meas_time - closest_ref.meas_time).total_seconds()
-            print(f"Time between ref and sample: {dt} seconds")
+            # print(f"Time between ref and sample: {dt} seconds")
             chosen_ref = closest_ref
         else:
             chosen_ref = self.refs[-1]
@@ -708,7 +677,7 @@ class Image:
 
     def plot_conductivity_spectrum(self, x, y):
         measurement = self.get_measurement(x, y)
-        sigma = self._eval_conductivity(measurement, freq_bounds=(0.2, 2.4))
+        sigma = self._eval_conductivity(measurement, freq_range=(0.45, 2.4))
 
         if not plt.fignum_exists("cond_spectrum"):
             fig = plt.figure("cond_spectrum")
@@ -1145,12 +1114,13 @@ if __name__ == '__main__':
     # film_image.plot_image(quantity="p2p")
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
-    # film_image.plot_conductivity_spectrum(30, -5)
-    film_image.plot_image(quantity="Conductivity", selected_freq=1.1250)
-    film_image.thz_vs_4pp(row_idx=4, segment_width=0)
-    film_image.thz_vs_4pp(row_idx=3, segment_width=0)
-    film_image.thz_vs_4pp(row_idx=5, segment_width=0)
-    film_image.correlation_image(row_idx=4, segment_width=0)
+    film_image.plot_point(14, -5)
+    film_image.plot_conductivity_spectrum(14, -5)
+    # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
+    #film_image.thz_vs_4pp(row_idx=4, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=3, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=5, segment_width=0)
+    # film_image.correlation_image(row_idx=4, segment_width=0)
 
     # film_image.correlation_image(row_idx=4, segment_width=0)
     # film_image.correlation_image(row_idx=3, p0=(37, 6))  # s4

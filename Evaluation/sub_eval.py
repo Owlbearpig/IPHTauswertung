@@ -29,7 +29,7 @@ def analytical_eval(sam_fd, ref_fd):
     plt.figure("Extinction coefficient")
     plt.plot(ref_fd[freq_range, 0].real, n[freq_range].imag, label="Analytical")
 
-    return n
+    return array([freqs, n], dtype=complex).T
 
 
 if __name__ == '__main__':

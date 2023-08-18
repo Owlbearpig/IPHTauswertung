@@ -79,7 +79,7 @@ def conductivity_vs_thickness():
 # -2, 16
 def main(en_plot=True, sample_idx=0, eval_point=None, d_film=None, selected_freq_=None):
     if d_film is None:
-        d_film = sample_thicknesses[sample_idx]
+        d_film = film_thicknesses[sample_idx]
 
     plot_td_scale = td_scales[sample_idx]
 
@@ -176,7 +176,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None, d_film=None, selected_freq
 
         if selected_freq_ is not None:
             selected_f_idx = np.argmin(np.abs(freqs - selected_freq_))
-            iters = shgo_iters - 3
+            iters = initial_shgo_iters - 3
             res = shgo(cost, bounds=bounds, args=(selected_f_idx,), iters=iters - 2)
             while res.fun > 1e-10:
                 iters += 1
@@ -198,7 +198,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None, d_film=None, selected_freq
                 if freq <= 0.20:
                     res = shgo(cost, bounds=bounds, args=(f_idx,), iters=4)
                 else:
-                    iters = shgo_iters - 3
+                    iters = initial_shgo_iters - 3
                     res = shgo(cost, bounds=bounds, args=(f_idx,), iters=iters - 2)
                     while (res.fun > 1e-10) and (eval_point[0] < 55):
                         iters += 1

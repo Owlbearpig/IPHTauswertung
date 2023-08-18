@@ -25,7 +25,7 @@ def make_legend():
 
 
 def main(en_plot=True, sample_idx=0, eval_point=None):
-    d_film = sample_thicknesses[sample_idx]
+    d_film = film_thicknesses[sample_idx]
     plot_td_scale = td_scales[sample_idx]
 
     if eval_point is None:
@@ -127,7 +127,7 @@ def main(en_plot=True, sample_idx=0, eval_point=None):
                 if freq <= 0.50:
                     res = shgo(cost, bounds=bounds, args=(f_idx,), iters=4)
                 else:
-                    iters = shgo_iters - 3
+                    iters = initial_shgo_iters - 3
                     res = shgo(cost, bounds=bounds, args=(f_idx,), iters=iters - 2)
                     while res.fun > 1e-5:
                         iters += 1

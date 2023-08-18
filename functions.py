@@ -319,3 +319,19 @@ def filtering(data_td, wn=(0.001, 9.999), filt_type="bandpass", order=5):
 
     return data_td_filtered
 
+
+def f_axis_idx_map(freqs, freq_range=None):
+    if freq_range is None:
+        freq_range = (0.25, 4.00)
+        f0_idx = int(np.argmin(np.abs(freqs - freq_range[0])))
+        f1_idx = int(np.argmin(np.abs(freqs - freq_range[1])))
+        f_idx = np.arange(f0_idx, f1_idx + 1)
+    elif isinstance(freq_range, tuple):
+        f0_idx = int(np.argmin(np.abs(freqs - freq_range[0])))
+        f1_idx = int(np.argmin(np.abs(freqs - freq_range[1])))
+        f_idx = np.arange(f0_idx, f1_idx + 1)
+    else:
+        single_freq = freq_range
+        f_idx = np.array([int(np.argmin(np.abs(freqs - single_freq)))])
+
+    return f_idx

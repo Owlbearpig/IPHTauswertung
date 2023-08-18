@@ -30,7 +30,7 @@ def main():
     n_film = (200 + 1j*200) * one
 
     n_list = array([one, n_sub, n_film, one], dtype=complex).T
-    d_list = [inf, d_sub, sample_thicknesses[0], inf]
+    d_list = [inf, d_sub, film_thicknesses[0], inf]
 
     ts_tmm_fd = np.zeros_like(freqs, dtype=complex)
     for f_idx, freq in enumerate(freqs):
