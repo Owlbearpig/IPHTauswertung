@@ -180,8 +180,10 @@ class Image:
 
         film_ref_fd, film_fd = do_fft(film_ref_td), do_fft(film_td)
 
-        film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
-        film_fd = phase_correction(film_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+        #film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+        #film_fd = phase_correction(film_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+        film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.7, 2.2), extrapolate=True, ret_fd=True, en_plot=False)
+        film_fd = phase_correction(film_fd, fit_range=(0.7, 2.2), extrapolate=True, ret_fd=True, en_plot=False)
 
         freqs = film_ref_fd[:, 0].real
         omega = 2 * pi * freqs
@@ -239,7 +241,7 @@ class Image:
             else:
                 bounds_ = shgo_bounds.copy()
 
-            if freq <= 2.0:
+            if freq <= 4.0:
                 if freq <= 0.20:
                     res = shgo(cost, bounds=bounds_, args=(f_idx_,), iters=4)
                 else:
@@ -677,7 +679,7 @@ class Image:
 
     def plot_conductivity_spectrum(self, x, y):
         measurement = self.get_measurement(x, y)
-        sigma = self._eval_conductivity(measurement, freq_range=(0.45, 2.4))
+        sigma = self._eval_conductivity(measurement, freq_range=(0.45, 4.0))
 
         if not plt.fignum_exists("cond_spectrum"):
             fig = plt.figure("cond_spectrum")
@@ -1116,7 +1118,7 @@ if __name__ == '__main__':
     # film_image.histogram()
     film_image.plot_point(14, -5)
     film_image.plot_conductivity_spectrum(14, -5)
-    # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
+    film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
     #film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     #film_image.thz_vs_4pp(row_idx=3, segment_width=0)
     #film_image.thz_vs_4pp(row_idx=5, segment_width=0)
