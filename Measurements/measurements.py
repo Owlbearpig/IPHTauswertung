@@ -5,6 +5,13 @@ from consts import data_dir
 from numpy.fft import fft, fftfreq
 from functions import window
 from Plotting.plot_data import plot_field
+from enum import Enum
+
+
+class MeasurementType(Enum):
+    REF = 1
+    SAM = 2
+    OTHER = 3
 
 
 class Measurement:
@@ -45,11 +52,11 @@ class Measurement:
 
         # set measurement type
         if "ref" in str(self.filepath.stem).lower():
-            self.meas_type = "ref"
+            self.meas_type = MeasurementType(1)
         elif "sam" in str(self.filepath.stem).lower():
-            self.meas_type = "sam"
+            self.meas_type = MeasurementType(2)
         else:
-            self.meas_type = "other"
+            self.meas_type = MeasurementType(3)
 
         # set position
         str_splits = str(self.filepath).split("_")

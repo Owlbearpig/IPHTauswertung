@@ -3,15 +3,13 @@ import random
 import re
 import timeit
 from itertools import product
-
 import matplotlib.pyplot as plt
-
 from consts import *
 import numpy as np
 import matplotlib.ticker as ticker
 from mpl_settings import *
 from functions import do_fft, do_ifft, phase_correction, unwrap, window, polyfit
-from measurements import get_all_measurements
+from measurements import get_all_measurements, MeasurementType
 from tmm_slim import coh_tmm
 # from tmm import coh_tmm
 from scipy.optimize import shgo
@@ -19,6 +17,7 @@ from Evaluation.sub_eval_tmm_numerical import tmm_eval
 
 
 class Image:
+
     plotted_ref = False
     noise_floor = None
     time_axis = None
@@ -32,7 +31,7 @@ class Image:
         self.data_path = data_path
         self.sub_image = sub_image
 
-        self.refs, self.sams = self._set_measurements()
+        self.refs, self.sams, self.other = self._set_measurements()
         if sample_idx is not None:
             self.sample_idx = sample_idx
 
@@ -69,29 +68,33 @@ class Image:
         self.options.update(options)
 
     def _set_measurements(self):
+        # TODO handle empty cases, since same thing is done three times maybe write method
         all_measurements = get_all_measurements(data_dir_=self.data_path)
-        refs, sams = self._filter_measurements(all_measurements)
+        refs, sams, other = self._filter_measurements(all_measurements)
 
         refs = tuple(sorted(refs, key=lambda meas: meas.meas_time))
         sams = tuple(sorted(sams, key=lambda meas: meas.meas_time))
+
         first_measurement = min(refs[0], sams[0], key=lambda meas: meas.meas_time)
         last_measurement = max(refs[-1], sams[-1], key=lambda meas: meas.meas_time)
         print(f"First measurement at: {first_measurement.meas_time}, last measurement: {last_measurement.meas_time}")
         dt = last_measurement.meas_time - first_measurement.meas_time
         print(f"Total measurement time: {round(dt.total_seconds() / 3600, 2)} hours\n")
 
-        return refs, sams
+        return refs, sams, other
 
     @staticmethod
     def _filter_measurements(measurements):
-        refs, sams = [], []
+        refs, sams, other = [], [], []
         for measurement in measurements:
-            if measurement.meas_type == "ref":
+            if measurement.meas_type.value == MeasurementType.REF.value:
                 refs.append(measurement)
-            else:
+            elif measurement.meas_type.value == MeasurementType.SAM.value:
                 sams.append(measurement)
+            else:
+                other.append(measurement)
 
-        return refs, sams
+        return refs, sams, other
 
     def _set_info(self):
         parts = self.sams[0].filepath.parts
@@ -166,8 +169,8 @@ class Image:
 
         return x, y
 
-    def _eval_conductivity(self, measurement, selected_freq_, **kwargs):
-        point = measurement.position
+    def _eval_conductivity(self, film_measurement, selected_freq_=None, **kwargs):
+        point = film_measurement.position
 
         if "d_film" not in kwargs.keys():
             d_film = sample_thicknesses[self.sample_idx]
@@ -182,7 +185,7 @@ class Image:
         """
         d_list = [inf, d_sub, d_film, inf]
 
-        film_td = measurement.get_data_td()
+        film_td = film_measurement.get_data_td()
         film_ref_td = self.get_ref(both=False, coords=point)
 
         film_td = window(film_td, win_len=12, shift=0, en_plot=False, slope=0.05)
@@ -195,7 +198,10 @@ class Image:
 
         freqs = film_ref_fd[:, 0].real
         omega = 2 * pi * freqs
-        f_idx = np.argmin(np.abs(freqs - selected_freq_))
+        if selected_freq_ is None:
+            f_idx = None
+        else:
+            f_idx = np.argmin(np.abs(freqs - selected_freq_))
 
         """
         try:
@@ -218,31 +224,36 @@ class Image:
                 n_sub = tmm_eval(self.sub_image, position)
                 np.save(ROOT_DIR / "Evaluation" / f"n_sub_s{self.sample_idx + 1}_{position[0]}_{position[1]}.npy",
                         n_sub)
-            n_sub = n_sub[f_idx]
 
-        print(f"Substrate refractive index: {np.round(n_sub, 3)}")
+        if f_idx is not None:
+            n_sub = n_sub[f_idx]
+            print(f"Substrate refractive index: {np.round(n_sub, 3)}")
 
         phase_shift = np.exp(-1j * (d_sub + np.sum(d_film)) * omega / c_thz)
 
         # film_ref_interpol = self._ref_interpolation(measurement, selected_freq_=selected_freq_, ret_cart=True)
 
-        def cost(p):
+        def cost(p, freq_idx_):
             """
             if self.sample_idx == 2:
                 n = array([1, n_sub, p[0] + 1j * p[1], p[2] + 1j * p[3], 1])
             else:
                 n = array([1, n_sub, p[0] + 1j * p[1], 1])
             """
-            n = array([1, n_sub, p[0] + 1j * p[1], 1])
 
-            lam_vac = c_thz / freqs[f_idx]
+            if selected_freq_ is None:
+                n = array([1, n_sub[freq_idx_], p[0] + 1j * p[1], 1])
+            else:
+
+
+            lam_vac = c_thz / freqs[freq_idx_]
             t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
 
-            sam_tmm_fd = t_tmm_fd * film_ref_fd[f_idx, 1] * phase_shift[f_idx]
+            sam_tmm_fd = t_tmm_fd * film_ref_fd[freq_idx_, 1] * phase_shift[freq_idx_]
             # sam_tmm_fd = t_tmm_fd * film_ref_interpol * phase_shift[f_idx]
 
-            amp_loss = (np.abs(sam_tmm_fd) - np.abs(film_fd[f_idx, 1])) ** 2
-            phi_loss = (np.angle(sam_tmm_fd) - np.angle(film_fd[f_idx, 1])) ** 2
+            amp_loss = (np.abs(sam_tmm_fd) - np.abs(film_fd[freq_idx_, 1])) ** 2
+            phi_loss = (np.angle(sam_tmm_fd) - np.angle(film_fd[freq_idx_, 1])) ** 2
 
             return amp_loss + phi_loss
 
@@ -251,42 +262,50 @@ class Image:
         else:
             bounds = kwargs["bounds"]
         iters = shgo_iters - 3
-        res = shgo(cost, bounds=bounds, iters=iters - 2)
-        while (res.fun > 1e-10) and (point[0] < 55):
-            iters += 1
-            res = shgo(cost, bounds=bounds, iters=iters)
-            if iters >= 5:
-                break
-        """
-        if self.sample_idx == 2:
-            n_opt = res.x[0] + 1j * res.x[1], res.x[2] + 1j * res.x[3]
-            epsilon = n_opt[0] ** 2
-            # epsilon = n_opt[1] ** 2
+
+        freq_opt_idx = []
+        if f_idx is not None:
+            freq_opt_idx.append(f_idx)
         else:
-            n_opt = res.x[0] + 1j * res.x[1]
-            epsilon = n_opt ** 2
-        """
-        n_opt = res.x[0] + 1j * res.x[1]
-        epsilon = n_opt ** 2
+            freq_bounds = kwargs["freq_bounds"]
+            f0_idx = np.argmin(np.abs(freqs - freq_bounds[0]))
+            f1_idx = np.argmin(np.abs(freqs - freq_bounds[1]))
+            freq_opt_idx.extend(np.arange(f0_idx, f1_idx+1))
 
-        sigma = 1j * (1 - epsilon) * epsilon_0 * omega[f_idx] * THz
+        n_opt, res = np.zeros_like(freq_opt_idx, dtype=complex), None
+        sigma = n_opt.copy()
+        for i, f_idx_ in enumerate(freq_opt_idx):
+            res = shgo(cost, bounds=bounds, iters=iters - 2, args=(f_idx_, ))
+            while (res.fun > 1e-10) and (point[0] < 55):
+                iters += 1
+                res = shgo(cost, bounds=bounds, iters=iters, args=(f_idx_, ))
+                if iters >= 5:
+                    break
 
-        print(f"Result: {np.round(sigma * 10 ** -6, 5)} (MS/m), "
-              f"n: {np.round(n_opt, 3)}, "
-              f"loss: {res.fun}, \n")
+            n_opt[i] = res.x[0] + 1j * res.x[1]
+            epsilon = n_opt[i] ** 2
+            sigma[i] = 1j * (1 - epsilon) * epsilon_0 * omega[f_idx_] * THz
+
+            print(f"Result: {np.round(sigma[i] * 10 ** -6, 5)} (MS/m), "
+                  f"n: {np.round(n_opt[i], 3)}, at {np.round(freqs[f_idx_], 3)} THz, "
+                  f"loss: {res.fun}")
 
         if ("ret_loss" in kwargs.keys()) and kwargs["ret_loss"]:
             return res.fun
 
-        return sigma
+        if "freq_bounds" in kwargs.keys():
+            freq_opt = freqs[freq_opt_idx]
+            return np.array([freq_opt, sigma]).T
+        else:
+            return sigma
 
     def _calc_power_grid(self, freq_range):
-        def power(measurement):
+        def power(measurement_):
             freq_slice = (freq_range[0] < self.freq_axis) * (self.freq_axis < freq_range[1])
 
-            ref_td, ref_fd = self.get_ref(coords=measurement.position, both=True)
+            ref_td, ref_fd = self.get_ref(coords=measurement_.position, both=True)
 
-            sam_fd = measurement.get_data_fd()
+            sam_fd = measurement_.get_data_fd()
             power_val_sam = np.sum(np.abs(sam_fd[freq_slice, 1])) / np.sum(freq_slice)
             power_val_ref = np.sum(np.abs(ref_fd[freq_slice, 1])) / np.sum(freq_slice)
 
@@ -294,11 +313,11 @@ class Image:
 
         grid_vals = self._empty_grid.copy()
 
-        for i, measurement in enumerate(self.sams):
+        for i, sam_measurement in enumerate(self.sams):
             print(f"{round(100 * i / len(self.sams), 2)} % done. "
-                  f"(Measurement: {i}/{len(self.sams)}, {measurement.position} mm)")
-            x_idx, y_idx = self._coords_to_idx(*measurement.position)
-            val = power(measurement)
+                  f"(Measurement: {i}/{len(self.sams)}, {sam_measurement.position} mm)")
+            x_idx, y_idx = self._coords_to_idx(*sam_measurement.position)
+            val = power(sam_measurement)
             grid_vals[x_idx, y_idx] = val
 
         return grid_vals
@@ -560,16 +579,23 @@ class Image:
         else:
             cbar.set_label(f"{quantity}".title() + label, rotation=270, labelpad=30)
 
-    def get_measurement(self, x, y):
-        closest_sam, best_fit_val = None, np.inf
-        for sam_meas in self.sams:
-            val = abs(sam_meas.position[0] - x) + \
-                  abs(sam_meas.position[1] - y)
+    def get_measurement(self, x, y, meas_type=MeasurementType.SAM.value):
+        if meas_type == MeasurementType.REF.value:
+            meas_list = self.refs
+        elif meas_type == MeasurementType.SAM.value:
+            meas_list = self.sams
+        else:
+            meas_list = self.other
+
+        closest_meas, best_fit_val = None, np.inf
+        for meas in meas_list:
+            val = abs(meas.position[0] - x) + \
+                  abs(meas.position[1] - y)
             if val < best_fit_val:
                 best_fit_val = val
-                closest_sam = sam_meas
+                closest_meas = meas
 
-        return closest_sam
+        return closest_meas
 
     def get_point(self, x, y, normalize=False, sub_offset=False, both=False, add_plot=False):
         dx, dy, dt = self.image_info["dx"], self.image_info["dy"], self.image_info["dt"]
@@ -596,7 +622,7 @@ class Image:
 
     def get_ref(self, both=False, normalize=False, sub_offset=False, coords=None, ret_meas=False):
         if coords is not None:
-            closest_sam = self.get_measurement(*coords)
+            closest_sam = self.get_measurement(*coords, meas_type=MeasurementType.SAM.value)
 
             closest_ref, best_fit_val = None, np.inf
             for ref_meas in self.refs:
@@ -604,7 +630,8 @@ class Image:
                 if val < best_fit_val:
                     best_fit_val = val
                     closest_ref = ref_meas
-            print(f"Time between ref and sample: {(closest_sam.meas_time - closest_ref.meas_time).total_seconds()}")
+            dt = (closest_sam.meas_time - closest_ref.meas_time).total_seconds()
+            print(f"Time between ref and sample: {dt} seconds")
             chosen_ref = closest_ref
         else:
             chosen_ref = self.refs[-1]
@@ -679,10 +706,29 @@ class Image:
         plt.figure("Time domain")
         plt.plot(sam_td[:, 0], td_scale * sam_td[:, 1], label=label + f"\n(Amplitude x {td_scale})")
 
-    def histogram(self):
-        grid_vals = self._calc_grid_vals(quantity="Conductivity", selected_freq=0.800)
+    def plot_conductivity_spectrum(self, x, y):
+        measurement = self.get_measurement(x, y)
+        sigma = self._eval_conductivity(measurement, freq_bounds=(0.2, 2.4))
 
-        plt.hist(grid_vals, density=True, bins=40)  # density=False would make counts
+        if not plt.fignum_exists("cond_spectrum"):
+            fig = plt.figure("cond_spectrum")
+            ax_ = fig.add_subplot(111)
+        else:
+            plt.figure("cond_spectrum")
+            ax_ = plt.gca()
+
+        freqs = sigma[:, 0].real
+
+        ax_.set_ylabel("Conductivity (S/m)")
+        ax_.set_xlabel("Frequency (THz)")
+        ax_.plot(freqs, sigma[:, 1].real)
+        ax_.plot(freqs, sigma[:, 1].imag)
+
+    def histogram(self):
+        grid_vals = self._calc_grid_vals(quantity="Conductivity", selected_freq=1.200)
+
+        plt.figure("Histogram")
+        plt.hist(grid_vals, density=False)  # density=False would make counts
         plt.ylabel("Conductivity (S/m)")
         plt.xlabel("Count")
 
@@ -917,7 +963,7 @@ class Image:
         segment_cnt = len(_4pp_vals)
         positions = range(1, segment_cnt + 1)
 
-        line_len = 3.5 # 3.5  # 4.0 # s2
+        line_len = 3.5  # 3.5  # 4.0 # s2
 
         if p0 is None:
             p0 = self._p0_map(row_idx)
@@ -945,35 +991,44 @@ class Image:
         r2 = "$R^2=$" + str(round(res["determination"], 3))
 
         if en_plot:
-            fig = plt.figure("THz vs 4pp")
-            _4pp_vs_thz_ax = fig.add_subplot(111)
+            if not plt.fignum_exists("THz vs 4pp"):
+                fig = plt.figure("THz vs 4pp")
+                _4pp_vs_thz_ax = fig.add_subplot(111)
+            else:
+                plt.figure("THz vs 4pp")
+                _4pp_vs_thz_ax = plt.gca()
+
             _4pp_vs_thz_ax.set_title("$\sigma_{THz}$(1.2 THz) vs $\sigma_{4pp}$(DC)")
             _4pp_vs_thz_ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
             _4pp_vs_thz_ax.xaxis.set_major_formatter(ticker.FuncFormatter(fmt))
             _4pp_vs_thz_ax.scatter(_4pp_vals, thz_cond_vals[str(segment_width)],
-                                   color="red", s=25, label=f"Data (Segment width: {segment_width} mm)")
+                                   **scatter_kwargs[f"row{row_idx}"])
             _4pp_vs_thz_ax.set_xlabel("Conductivity 4pp measurement (S/m)")
             _4pp_vs_thz_ax.set_ylabel("Conductivity THz measurement (S/m)")
 
             sign = (z[1] > 0)*"+"
-            _4pp_vs_thz_ax.plot(x, fit, label=f"Linear fit ({np.round(z[0], 2)}x{sign}{np.round(z[1])} S/m)\n" + r2)
+            plot_kwargs[f"row{row_idx}"]["label"] += r2
+            _4pp_vs_thz_ax.plot(x, fit, **plot_kwargs[f"row{row_idx}"])
 
-            fig = plt.figure("4pp")
-            ax = fig.add_subplot(111)
-            # ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
-            tick_spacing = 1
-            ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing))
+            if not plt.fignum_exists("4pp"):
+                fig = plt.figure("4pp")
+                _ax = fig.add_subplot(111)
+                # ax.yaxis.set_major_formatter(ticker.FuncFormatter(fmt))
+                tick_spacing = 1
+                _ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing))
+                _ax.set_ylabel("Conductivity (normalized)")
+                _ax.set_xlabel("Position idx")
+            else:
+                plt.figure("4pp")
+                _ax = plt.gca()
 
-            ax.plot(positions, _4pp_val_scaled, label="$\sigma_{4pp}$(DC)")
+            _ax.plot(positions, _4pp_val_scaled, label="$\sigma_{4pp}$(DC)")
             # plt.plot(thz_slope * _4pp_slope)
-
-            ax.set_ylabel("Conductivity (normalized)")
-            ax.set_xlabel("Position idx")
 
             for dy in thz_cond_vals.keys():
                 if dy == str(segment_width):
                     plt.figure("4pp")
-                    ax.plot(positions, thz_cond_vals[str(dy)], label="$\sigma_{THz}$(1.2 THz)" + f" dy={dy} mm")
+                    _ax.plot(positions, thz_cond_vals[str(dy)], label="$\sigma_{THz}$(1.2 THz)" + f" dy={dy} mm")
 
             def _plot_line_segment(segment_, segment_idx_=None):
                 plt.figure(f"{self.name} {sample_labels[self.sample_idx]}")
@@ -1089,9 +1144,14 @@ if __name__ == '__main__':
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
     # film_image.plot_image(quantity="p2p")
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
-    film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
+    # film_image.histogram()
+    # film_image.plot_conductivity_spectrum(30, -5)
+    film_image.plot_image(quantity="Conductivity", selected_freq=1.1250)
+    film_image.thz_vs_4pp(row_idx=4, segment_width=0)
+    film_image.thz_vs_4pp(row_idx=3, segment_width=0)
     film_image.thz_vs_4pp(row_idx=5, segment_width=0)
-    film_image.correlation_image(row_idx=5, segment_width=0)
+    film_image.correlation_image(row_idx=4, segment_width=0)
+
     # film_image.correlation_image(row_idx=4, segment_width=0)
     # film_image.correlation_image(row_idx=3, p0=(37, 6))  # s4
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)

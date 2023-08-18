@@ -72,3 +72,15 @@ else:
         os.scandir(data_dir)
     except FileNotFoundError:
         data_dir = Path(r"C:\Users\Laptop\Desktop")
+
+# plot formatting
+
+scatter_kwargs = {"row3": {"color": "red", "s": 40, "marker": "s", "label": "Row 3"},
+                  "row4": {"color": "blue", "s": 40, "marker": "v", "label": "Row 4"},
+                  "row5": {"color": "green", "s": 40, "marker": "o", "label": "Row 5"},
+                  }
+
+plot_kwargs = {"row3": {"color": "red", "linestyle": "solid", "label": "Row 3 "},
+               "row4": {"color": "blue", "linestyle": "dashed", "label": "Row 4 "},
+               "row5": {"color": "green", "linestyle": "dashdot", "label": "Row 5 "},
+               }
