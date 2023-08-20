@@ -4,20 +4,21 @@ import re
 import timeit
 from itertools import product
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from consts import *
 import numpy as np
 import matplotlib.ticker as ticker
-from mpl_settings import *
 from functions import do_fft, do_ifft, phase_correction, unwrap, window, polyfit, f_axis_idx_map
-from measurements import get_all_measurements, MeasurementType
+from functions import remove_spikes
+from Measurements.measurements import get_all_measurements, MeasurementType
 from tmm_slim import coh_tmm
 # from tmm import coh_tmm
+from mpl_settings import mpl_style_params, fmt
 from scipy.optimize import shgo
 from Evaluation.sub_eval_tmm_numerical import tmm_eval
 
 
 class Image:
-
     plotted_ref = False
     noise_floor = None
     time_axis = None
@@ -39,33 +40,43 @@ class Image:
         self._set_options(options)
         self.image_data = self._image_cache()
 
-    def _set_options(self, options):
-        if options is None:
-            options = {}
+    def _set_options(self, options_):
+        if options_ is None:
+            options_ = {}
 
         # set defaults if missing # TODO use default_dict ?
-        if "excluded_areas" not in options.keys():
-            options["excluded_areas"] = None
-        if "one2onesub" not in self.options.keys():
-            options["one2onesub"] = False
+        if "excluded_areas" not in options_.keys():
+            options_["excluded_areas"] = None
+        if "one2onesub" not in options_.keys():
+            options_["one2onesub"] = False
 
-        if "cbar_min" not in self.options.keys():
-            options["cbar_min"] = 0
-        if "cbar_max" not in self.options.keys():
-            options["cbar_max"] = np.inf
+        if "cbar_min" not in options_.keys():
+            options_["cbar_min"] = 0
+        if "cbar_max" not in options_.keys():
+            options_["cbar_max"] = np.inf
 
-        if "log_scale" not in self.options.keys():
-            options["log_scale"] = False
+        if "log_scale" not in options_.keys():
+            options_["log_scale"] = False
 
-        if "color_map" not in self.options.keys():
-            options["color_map"] = "autumn"
+        if "color_map" not in options_.keys():
+            options_["color_map"] = "autumn"
 
-        if "invert_x" not in self.options.keys():
-            options["invert_x"] = False
-        if "invert_y" not in self.options.keys():
-            options["invert_y"] = False
+        if "invert_x" not in options_.keys():
+            options_["invert_x"] = False
+        if "invert_y" not in options_.keys():
+            options_["invert_y"] = False
 
-        self.options.update(options)
+        if "load_mpl_style" not in options_.keys():
+            options_["load_mpl_style"] = True
+        else:
+            options_["load_mpl_style"] = False
+
+        self.options.update(options_)
+        self._apply_options()
+
+    def _apply_options(self):
+        if self.options["load_mpl_style"]:
+            mpl.rcParams = mpl_style_params()
 
     def _set_measurements(self):
         # TODO handle empty cases, since same thing is done three times maybe write method
@@ -100,7 +111,7 @@ class Image:
         parts = self.sams[0].filepath.parts
         if self.sample_idx is None:
             self.sample_idx = sample_names.index(parts[-2])
-        #self.name = f"Sample {self.sample_idx + 1} {parts[-3]}"
+        # self.name = f"Sample {self.sample_idx + 1} {parts[-3]}"
         self.name = f"Sample {self.sample_idx + 1}"
 
         sample_data_td = self.sams[0].get_data_td()
@@ -169,48 +180,57 @@ class Image:
 
         return x, y
 
-    def _eval_conductivity(self, film_measurement, freq_range=None, **kwargs):
+    def _tmm_film_fit(self, film_measurement, freq_range=None, **kwargs):
         point = film_measurement.position
-
-        film_td = film_measurement.get_data_td()
-        film_ref_td = self.get_ref(both=False, coords=point)
-
-        film_td = window(film_td, win_len=12, shift=0, en_plot=False, slope=0.05)
-        film_ref_td = window(film_ref_td, win_len=12, shift=0, en_plot=False, slope=0.05)
-
-        film_ref_fd, film_fd = do_fft(film_ref_td), do_fft(film_td)
-
-        #film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
-        #film_fd = phase_correction(film_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
-        film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.7, 2.2), extrapolate=True, ret_fd=True, en_plot=False)
-        film_fd = phase_correction(film_fd, fit_range=(0.7, 2.2), extrapolate=True, ret_fd=True, en_plot=False)
-
-        freqs = film_ref_fd[:, 0].real
-        omega = 2 * pi * freqs
 
         if "d_film" not in kwargs.keys():
             d_film = film_thicknesses[self.sample_idx]
         else:
             d_film = kwargs["d_film"]
 
-        if "shgo_bounds" not in kwargs.keys():
-            shgo_bounds = shgo_bounds_film[self.sample_idx]
-        else:
-            shgo_bounds = kwargs["shgo_bounds"]
-
-        f_opt_idx = f_axis_idx_map(freqs, freq_range)
-
-        d_list = [inf, d_sub, d_film, inf]
-
         if self.options["one2onesub"]:
             sub_point = point
         else:
             sub_point = (10, 10)
 
-        n_sub = tmm_eval(self.sub_image, sub_point, freq_range=freq_range)
+        if "shgo_bounds" not in kwargs.keys():
+            shgo_bounds = shgo_bounds_film[self.sample_idx]
+        else:
+            shgo_bounds = kwargs["shgo_bounds"]
 
-        if len(f_opt_idx) == 1:
-            print(f"Substrate refractive index: {np.round(n_sub[f_opt_idx, 1], 3)}")
+        if "en_all_plots" not in kwargs.keys():
+            en_plot_ = False
+        else:
+            en_plot_ = kwargs["en_all_plots"]
+
+        if "smoothen" not in kwargs.keys():
+            en_smoothen = False
+        else:
+            en_smoothen = kwargs["smoothen"]
+
+        film_td = film_measurement.get_data_td()
+        film_ref_td = self.get_ref(both=False, coords=point)
+
+        #film_td = window(film_td, win_len=12, shift=0, en_plot=en_plot_, slope=0.05)
+        #film_ref_td = window(film_ref_td, win_len=12, shift=0, en_plot=en_plot_, slope=0.05)
+
+        film_ref_fd, film_fd = do_fft(film_ref_td), do_fft(film_td)
+
+        # film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+        # film_fd = phase_correction(film_fd, fit_range=(0.8, 1.6), extrapolate=True, ret_fd=True, en_plot=False)
+        #film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.7, 2.2), extrapolate=True, ret_fd=True,
+        #                               en_plot=en_plot_)
+        #film_fd = phase_correction(film_fd, fit_range=(0.7, 2.2), extrapolate=True, ret_fd=True, en_plot=en_plot_)
+
+        freqs = film_ref_fd[:, 0].real
+        zero = np.zeros_like(freqs, dtype=complex)
+        omega = 2 * pi * freqs
+
+        f_opt_idx = f_axis_idx_map(freqs, freq_range)
+
+        d_list = [inf, d_sub, d_film, inf]
+
+        n_sub = tmm_eval(self.sub_image, sub_point, freq_range=freq_range, en_plot=en_plot_)
 
         phase_shift = np.exp(-1j * (d_sub + np.sum(d_film)) * omega / c_thz)
 
@@ -230,14 +250,16 @@ class Image:
 
             return amp_loss + phi_loss
 
-        n_opt, res = np.zeros_like(freqs, dtype=complex), None
-        sigma = n_opt.copy()
+        res = None
+        sigma, epsilon_r, n_opt = zero.copy(), zero.copy(), zero.copy()
         for f_idx_, freq in enumerate(freqs):
             if f_idx_ not in f_opt_idx:
                 continue
 
-            if freq > 1.2:
+            if (1.2 < freq) * (freq < 2.5):
                 bounds_ = [(1, 175), (0, 175)]
+            elif 2.5 < freq:
+                bounds_ = [(1, 6), (50, 150)]
             else:
                 bounds_ = shgo_bounds.copy()
 
@@ -254,21 +276,28 @@ class Image:
                             break
 
             n_opt[f_idx_] = res.x[0] + 1j * res.x[1]
-            epsilon = n_opt[f_idx_] ** 2
-            sigma[f_idx_] = 1j * (1 - epsilon) * epsilon_0 * omega[f_idx_] * THz
-
+            epsilon_r[f_idx_] = n_opt[f_idx_] ** 2
+            sigma[f_idx_] = 1j * (1 - epsilon_r[f_idx_]) * epsilon_0 * omega[f_idx_] * THz
             print(f"Result: {np.round(sigma[f_idx_] * 10 ** -6, 5)} (MS/m), "
                   f"n: {np.round(n_opt[f_idx_], 3)}, at {np.round(freqs[f_idx_], 3)} THz, "
-                  f"loss: {res.fun}\n")
+                  f"loss: {res.fun}")
+            print(f"Substrate refractive index: {np.round(n_sub[f_idx_, 1], 3)}\n")
 
-        if ("ret_loss" in kwargs.keys()) and kwargs["ret_loss"]:
-            return res.fun
+        if en_smoothen:
+            sigma = remove_spikes(sigma)
 
-        if isinstance(freq_range, tuple):
-            freq_opt, sigma_opt = freqs[f_opt_idx], sigma[f_opt_idx]
-            return np.array([freq_opt, sigma_opt], dtype=complex).T
+        if len(f_opt_idx) != 1:
+            sigma_ret = np.array([freqs[f_opt_idx], sigma[f_opt_idx]], dtype=complex).T
+            epsilon_r_ret = np.array([freqs[f_opt_idx], epsilon_r[f_opt_idx]], dtype=complex).T
+            n = np.array([freqs[f_opt_idx], n_opt[f_opt_idx]], dtype=complex).T
         else:
-            return sigma[f_opt_idx]
+            sigma_ret = sigma[f_opt_idx]
+            epsilon_r_ret = epsilon_r[f_opt_idx]
+            n = n_opt[f_opt_idx]
+
+        ret = {"loss": res.fun, "sigma": sigma_ret, "epsilon_r": epsilon_r_ret, "n": n}
+
+        return ret
 
     def _calc_power_grid(self, freq_range):
         def power(measurement_):
@@ -333,9 +362,9 @@ class Image:
                         print(f"{round(100 * i / len(self.sams), 2)} % done, Frequency: {f_idx} / {freq_cnt}. "
                               f"(Measurement: {i}/{len(self.sams)}, {pos} mm)")
                         x_idx, y_idx = self._coords_to_idx(*pos)
-                        val = self._eval_conductivity(measurement, freq)
+                        res = self._tmm_film_fit(measurement, freq)
 
-                        grid_vals[x_idx, y_idx, f_idx] = val
+                        grid_vals[x_idx, y_idx, f_idx] = res["sigma"]
 
                 np.save(str(grid_vals_cache_name), grid_vals)
 
@@ -361,9 +390,9 @@ class Image:
                     pos = measurement.position
                     print(f"{round(100 * i / len(self.sams), 2)} % done. "
                           f"(Measurement: {i}/{len(self.sams)}, {pos} mm)")
-                    val = self._eval_conductivity(measurement, selected_freq)
+                    res = self._tmm_film_fit(measurement, selected_freq)
                     x_idx, y_idx = self._coords_to_idx(*pos)
-                    grid_vals[x_idx, y_idx] = val
+                    grid_vals[x_idx, y_idx] = res["sigma"]
 
                 np.save(str(grid_vals_cache_name), grid_vals)
         elif quantity.lower() == "ref_amp":
@@ -383,8 +412,8 @@ class Image:
                 print(f"{round(100 * i / len(self.sams), 2)} % done. "
                       f"(Measurement: {i}/{len(self.sams)}, {measurement.position} mm)")
                 x_idx, y_idx = self._coords_to_idx(*measurement.position)
-                loss = self._eval_conductivity(measurement, selected_freq, ret_loss=True)
-                grid_vals[x_idx, y_idx] = np.log10(loss)
+                res = self._tmm_film_fit(measurement, selected_freq)
+                grid_vals[x_idx, y_idx] = np.log10(res["loss"])
 
         elif quantity == "Reference phase":
             grid_vals = self._empty_grid.copy()
@@ -413,8 +442,8 @@ class Image:
         thicknesses = np.arange(0.000001, 0.001000, 0.000001)
         conductivities = np.zeros_like(thicknesses, dtype=complex)
         for idx, d in enumerate(thicknesses):
-            val = self._eval_conductivity(measurement, freq, d_film=d)
-            conductivities[idx] = val
+            res = self._tmm_film_fit(measurement, freq, d_film=d)
+            conductivities[idx] = res["sigma"]
 
         plt.figure("Conductivity vs thickness")
         plt.title(f"Conductivity as a function of thickness at {freq} THz\n{self.name} {point} mm")
@@ -677,9 +706,15 @@ class Image:
         plt.figure("Time domain")
         plt.plot(sam_td[:, 0], td_scale * sam_td[:, 1], label=label + f"\n(Amplitude x {td_scale})")
 
-    def plot_conductivity_spectrum(self, x, y):
+    def evaluate_point(self, x, y, **kwargs):
         measurement = self.get_measurement(x, y)
-        sigma = self._eval_conductivity(measurement, freq_range=(0.45, 4.0))
+        res_ = self._tmm_film_fit(measurement, **kwargs)
+
+        return res_
+
+    def plot_conductivity_spectrum(self, x, y, **kwargs):
+        res = self.evaluate_point(x, y, **kwargs)
+        sigma = res["sigma"]
 
         if not plt.fignum_exists("cond_spectrum"):
             fig = plt.figure("cond_spectrum")
@@ -694,6 +729,8 @@ class Image:
         ax_.set_xlabel("Frequency (THz)")
         ax_.plot(freqs, sigma[:, 1].real)
         ax_.plot(freqs, sigma[:, 1].imag)
+
+        return sigma
 
     def histogram(self):
         grid_vals = self._calc_grid_vals(quantity="Conductivity", selected_freq=1.200)
@@ -842,8 +879,8 @@ class Image:
                 "s4_r3_old": s4_r3_old,
                 }
 
-        #slice_ = slice(0, 12)
-        #vals = map_[f"s{s_idx + 1}_r{row_id}"][slice_]
+        # slice_ = slice(0, 12)
+        # vals = map_[f"s{s_idx + 1}_r{row_id}"][slice_]
         vals = map_[f"s{s_idx + 1}_r{row_id}"]
 
         return vals[1:]
@@ -882,7 +919,7 @@ class Image:
                    "s4_r3_old": (36.5, -3.50),  # "s4_r3_old": (37, 6), original
 
                    # "s4_r3": (35, -2.00), "s4_r4": (35, -5.00), "s4_r5": (35, 1.50), # measured
-                   #"s4_r3": (37, -3.50),  "s4_r5": (37, 0.00), "s4_r4": (37.5, -5.00), # original r5, r4 "works"
+                   # "s4_r3": (37, -3.50),  "s4_r5": (37, 0.00), "s4_r4": (37.5, -5.00), # original r5, r4 "works"
                    # "s4_r3": (37.5, -2.50), "s4_r4": (37.5, -5.00), "s4_r5": (37.5, -0.50),  # best if not considering first point
                    "s4_r3": (37, -2.50), "s4_r4": (37, -5.00), "s4_r5": (37, -0.50),
                    }
@@ -918,7 +955,7 @@ class Image:
 
             segments_ = []
             for segment_idx in range(segment_cnt_):
-                dy_l = arrow_height * (segment_idx/segment_cnt_)
+                dy_l = arrow_height * (segment_idx / segment_cnt_)
                 dy_r = arrow_height * ((segment_idx + 1) / segment_cnt_)
 
                 pl = p0_[0] - segment_idx * line_len_, p0_[1] + dy_l  # left point of diagonal
@@ -977,7 +1014,7 @@ class Image:
             _4pp_vs_thz_ax.set_xlabel("Conductivity 4pp measurement (S/m)")
             _4pp_vs_thz_ax.set_ylabel("Conductivity THz measurement (S/m)")
 
-            sign = (z[1] > 0)*"+"
+            sign = (z[1] > 0) * "+"
             plot_kwargs[f"row{row_idx}"]["label"] += r2
             _4pp_vs_thz_ax.plot(x, fit, **plot_kwargs[f"row{row_idx}"])
 
@@ -1117,11 +1154,11 @@ if __name__ == '__main__':
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
     film_image.plot_point(14, -5)
-    film_image.plot_conductivity_spectrum(14, -5)
-    film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    #film_image.thz_vs_4pp(row_idx=4, segment_width=0)
-    #film_image.thz_vs_4pp(row_idx=3, segment_width=0)
-    #film_image.thz_vs_4pp(row_idx=5, segment_width=0)
+    film_image.plot_conductivity_spectrum(14, -5, en_all_plots=False)
+    # film_image.plot_image(quantity="Conductivity", selected_freq=2.000)
+    # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
+    # film_image.thz_vs_4pp(row_idx=3, segment_width=0)
+    # film_image.thz_vs_4pp(row_idx=5, segment_width=0)
     # film_image.correlation_image(row_idx=4, segment_width=0)
 
     # film_image.correlation_image(row_idx=4, segment_width=0)

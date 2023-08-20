@@ -1,5 +1,5 @@
 import random
-from load_teralyzervalues import teralyzer_read_point
+from Evaluation.load_teralyzervalues import teralyzer_read_point
 import numpy as np
 from scipy.optimize import shgo
 from consts import *
@@ -7,7 +7,7 @@ from numpy import array
 import matplotlib.pyplot as plt
 from tmm_slim import coh_tmm
 from functions import do_ifft, do_fft, phase_correction, to_db, window, f_axis_idx_map
-from sub_eval import analytical_eval
+from Evaluation.sub_eval import analytical_eval
 from mpl_settings import *
 
 
@@ -16,13 +16,13 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
     sub_td = sub_image.get_point(x=eval_point_[0], y=eval_point_[1], sub_offset=True, both=False)
     sub_ref_td = sub_image.get_ref(both=False, coords=eval_point_)
 
-    sub_td = window(sub_td, win_len=12, shift=0, en_plot=False)
-    sub_ref_td = window(sub_ref_td, win_len=12, shift=0, en_plot=False)
+    #sub_td = window(sub_td, win_len=12, shift=0, en_plot=False)
+    #sub_ref_td = window(sub_ref_td, win_len=12, shift=0, en_plot=False)
 
     sub_ref_fd, sub_fd = do_fft(sub_ref_td), do_fft(sub_td)
 
-    sub_ref_fd = phase_correction(sub_ref_fd, fit_range=(0.60, 1.60), extrapolate=True, ret_fd=True)
-    sub_fd = phase_correction(sub_fd, fit_range=(0.60, 1.60), extrapolate=True, ret_fd=True)
+    #sub_ref_fd = phase_correction(sub_ref_fd, fit_range=(0.60, 1.60), extrapolate=True, ret_fd=True)
+    #sub_fd = phase_correction(sub_fd, fit_range=(0.60, 1.60), extrapolate=True, ret_fd=True)
 
     freqs = sub_fd[:, 0].real
     omega = 2 * pi * freqs
@@ -37,6 +37,8 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
         n_list_ = array([one, n_model, one], dtype=complex).T
         ts_tmm_fd = np.zeros_like(freqs, dtype=complex)
         for f_idx_, freq_ in enumerate(freqs):
+            if np.isclose(freq_, 0):
+                continue
             lam_vac = c_thz / freq_
             n = n_list_[f_idx_]
             t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
@@ -85,7 +87,7 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
             def optimize(f_idx_, max_iters=8):
                 iters = initial_shgo_iters - 3
                 print(f"Frequency: {freqs[f_idx_]} (THz), (idx: {f_idx_})")
-                res = shgo(cost, bounds=bounds, args=(f_idx_,), iters=iters - 2)
+                res = shgo(cost, bounds=bounds, args=(f_idx_, ), iters=iters - 2)
                 while res.fun > 1e-10:
                     iters += 1
                     res = shgo(cost, bounds=bounds, args=(f_idx_,), iters=iters)
@@ -123,7 +125,7 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
         label = f"{sub_image.name} (TMM) x={eval_point_[0]} mm, y={eval_point_[1]} mm"
 
         if en_plot:
-            plt.figure("RI")
+            plt.figure("RI substrate")
             plt.title("Complex refractive index substrates")
             plt.plot(freqs[plot_range_sub], n_sub[plot_range_sub].real, label="Real part " + label)
             plt.plot(freqs[plot_range_sub], n_sub[plot_range_sub].imag, label="Imaginary part " + label)
@@ -132,13 +134,13 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Refractive index")
 
-            plt.figure("Extinction coefficient")
+            plt.figure("Extinction coefficient substrate")
             plt.title("Extinction coefficient substrates")
             plt.plot(freqs[plot_range_sub], n_sub[plot_range_sub].imag, label=label)
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Extinction coefficient")
 
-            plt.figure("Absorption")
+            plt.figure("Absorption substrate")
             plt.title("Absorption substrates")
             plt.plot(freqs[plot_range_sub], 0.01*absorption[plot_range_sub], label=label)
             plt.xlabel("Frequency (THz)")
@@ -146,7 +148,7 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
 
             noise_floor = np.mean(20 * np.log10(np.abs(sub_ref_fd[sub_ref_fd[:, 0] > 6.0, 1])))
 
-            plt.figure("Spectrum")
+            plt.figure("Spectrum substrate")
             plt.title("Spectrum substrate")
             plt.plot(sub_ref_fd[plot_range1, 0], to_db(sub_ref_fd[plot_range1, 1]) - noise_floor, label="Reference")
             plt.plot(sam_tmm_shgo_fd[plot_range1, 0], to_db(sam_tmm_shgo_fd[plot_range1, 1])-noise_floor, label="Uncoated substrate")
@@ -154,7 +156,7 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Amplitude (dB)")
 
-            plt.figure("Phase")
+            plt.figure("Phase substrate")
             plt.title("Phases substrates")
             plt.plot(sam_tmm_shgo_fd[plot_range_sub, 0], phi_tmm[plot_range_sub, 1],
                      label=label, linewidth=1.5)
