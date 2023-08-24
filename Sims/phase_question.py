@@ -5,9 +5,9 @@ from mpl_settings import *
 import matplotlib.pyplot as plt
 from functions import unwrap, do_fft, do_ifft, to_db, get_noise_floor
 
-# should the unwrapped phase also be linear for multilayer samples ?
+# should the unwrapped phase also be linear for transmission through multilayer samples ?
 # -> take ref and send it through 2 layer sample -> unwrap resulting phase
-# result: lgtm
+# result: lgtm. ++It probably depends on if the media is dispersive
 
 
 def main():

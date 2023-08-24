@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import pearsonr
 from imports import *
-from numpy.fft import fft, ifft, fftfreq
+from numpy.fft import fft, ifft, fftfreq, rfft, rfftfreq
 from scipy import signal
 
 
@@ -10,14 +10,18 @@ def do_fft(data_td, pos_freqs_only=True):
     data_td = nan_to_num(data_td)
 
     dt = float(np.mean(np.diff(data_td[:, 0])))
-    freqs, data_fd = fftfreq(n=len(data_td[:, 0]), d=dt), np.conj(fft(data_td[:, 1]))
+    freqs, data_fd = rfftfreq(n=len(data_td[:, 0]), d=dt), np.conj(rfft(data_td[:, 1]))
+
+    return array([freqs, data_fd]).T
+    """
+    #freqs, data_fd = fftfreq(n=len(data_td[:, 0]), d=dt), np.conj(fft(data_td[:, 1]))
 
     if pos_freqs_only:
         post_freq_slice = freqs >= 0
         return array([freqs[post_freq_slice], data_fd[post_freq_slice]]).T
     else:
         return array([freqs, data_fd]).T
-
+    """
 
 def do_ifft(data_fd, hermitian=True, shift=0, flip=False):
     freqs, y_fd = data_fd[:, 0].real, data_fd[:, 1]
@@ -81,11 +85,14 @@ def phase_correction(data_fd, disable=False, fit_range=None, en_plot=False, extr
 
     phase_corrected = phase_unwrapped[:, 1] - p[1].real
 
+    plt.figure("abekeke")
+    plt.plot(freqs[1:], np.diff(phase_corrected))
+
     if en_plot:
         plt.figure("phase_correction")
         plt.plot(freqs, phase_unwrapped[:, 1], label="Unwrapped phase")
         plt.plot(freqs, phase_corrected, label="Shifted phase")
-        plt.plot(freqs, freqs * p[0].real, label="Lin. fit (slope*freq)")
+        # plt.plot(freqs, freqs * p[0].real, label="Lin. fit (slope*freq)")
         plt.xlabel("Frequency (THz)")
         plt.ylabel("Phase (rad)")
         plt.legend()
@@ -322,7 +329,7 @@ def filtering(data_td, wn=(0.001, 9.999), filt_type="bandpass", order=5):
 
 def f_axis_idx_map(freqs, freq_range=None):
     if freq_range is None:
-        freq_range = (0.70, 4.00)
+        freq_range = (0.15, 4.00)
         f0_idx = int(np.argmin(np.abs(freqs - freq_range[0])))
         f1_idx = int(np.argmin(np.abs(freqs - freq_range[1])))
         f_idx = np.arange(f0_idx, f1_idx + 1)
