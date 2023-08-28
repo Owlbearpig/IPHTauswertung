@@ -29,8 +29,7 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
     freqs = sub_fd[:, 0].real
     omega = 2 * pi * freqs
     one = np.ones_like(freqs)
-    phase_shift = np.ones_like(omega)
-    # phase_shift = np.exp(-1j * d_sub * omega / c_thz) # "works"
+    phase_shift = np.exp(-1j * d_sub * omega / c_thz)  # in the sample measurement this space is occupied by the sample
 
     if d_ is not None:
         d_list = [inf, d_, inf]
@@ -50,10 +49,10 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
                 continue
             lam_vac = c_thz / freq_
             n = n_list_[f_idx_]
-            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
+            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[f_idx_]
             ts_tmm_fd[f_idx_] = t_tmm_fd
 
-        sam_tmm_fd_ = array([freqs, ts_tmm_fd * sub_ref_fd[:, 1] * phase_shift]).T
+        sam_tmm_fd_ = array([freqs, ts_tmm_fd * sub_ref_fd[:, 1]]).T
         sam_tmm_td_ = do_ifft(sam_tmm_fd_)
 
         if ret_t:
@@ -91,9 +90,9 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
                 n = array([1, p[0] + 1j * p[1], 1])
 
                 lam_vac = c_thz / freqs[freq_idx_]
-                t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
+                t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[freq_idx_]
 
-                sam_tmm_fd_ = t_tmm_fd * sub_ref_fd[freq_idx_, 1] * phase_shift[freq_idx_]
+                sam_tmm_fd_ = t_tmm_fd * sub_ref_fd[freq_idx_, 1]
 
                 amp_loss = (np.abs(sam_tmm_fd_) - np.abs(sub_fd[freq_idx_, 1])) ** 2
                 phi_loss = (np.angle(t_tmm_fd) - phi[freq_idx_]) ** 2
@@ -133,10 +132,10 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
                     continue
 
                 if freq < 0.15:
-                    res = optimize(f_idx, max_iters=5)
+                    res = optimize(f_idx, max_iters=4)
                     n_sub[f_idx] = res.x[0] + 1j * res.x[1]
-                elif freq <= 4:
-                    res = optimize(f_idx, max_iters=8)
+                elif freq <= 4.0:
+                    res = optimize(f_idx, max_iters=7)
                     n_sub[f_idx] = res.x[0] + 1j * res.x[1]
                 else:
                     n_sub[f_idx] = n_sub[f_idx - 1]
@@ -239,11 +238,11 @@ if __name__ == '__main__':
 
     # sample_idx = 0
     # image_data = data_dir / "Edge" / sample_names[sample_idx]
-    image_data = data_dir / "Uncoated" / "s2"
+    image_data = data_dir / "Uncoated" / "s4"
     image = Image(image_data)
     # image.plot_point(33, 11)
     # image.plot_image(quantity="p2p", img_extent=[-10, 30, 0, 20])
-    # image.plot_image(quantity="p2p")
+    image.plot_image(quantity="p2p")
 
     """
     for i in range(4):
@@ -262,11 +261,12 @@ if __name__ == '__main__':
     """
 
     eval_point = (20, 10)  # used for s1-s3
+    eval_point = (40, 10)  # used for s1-s3
     # eval_point = (33, 11)  # s4
     # eval_point = (42, 20)
     # eval_point = (10, 10)
-    # n_sub = tmm_eval(sub_image=image, eval_point_=eval_point, en_plot=True)
-    # """
+    n_sub = tmm_eval(sub_image=image, eval_point_=eval_point, en_plot=True)
+    """
     ds = array(list(range(35, 70, 1)), dtype=float) * 1e-3
     tv_n, tv_k, equals = [], [], []
     for _d in ds:
@@ -280,7 +280,7 @@ if __name__ == '__main__':
     plt.plot(ds, tv_k, label="tv_k")
     plt.plot(ds, equals, label="0 diff. sum")
     plt.legend()
-    # """
+    """
     # np.save(f"n_sub_s{sam_idx + 1}_{eval_point[0]}_{eval_point[1]}.npy", n_sub)
 
     """

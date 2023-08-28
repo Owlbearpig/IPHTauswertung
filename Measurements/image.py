@@ -18,7 +18,6 @@ from scipy.optimize import shgo
 from Evaluation.sub_eval_tmm_numerical import tmm_eval
 
 
-
 class Image:
     plotted_ref = False
     noise_floor = None
@@ -193,7 +192,10 @@ class Image:
         if self.options["one2onesub"]:
             sub_point = point
         else:
-            sub_point = (10, 10)
+            if self.sample_idx != 3:
+                sub_point = (10, 10)
+            else:
+                sub_point = (40, 10)
 
         if "shgo_bounds" not in kwargs.keys():
             shgo_bounds = shgo_bounds_film[self.sample_idx]
@@ -213,8 +215,8 @@ class Image:
         film_td = film_measurement.get_data_td()
         film_ref_td = self.get_ref(both=False, coords=point)
 
-        #film_td = window(film_td, win_len=12, shift=0, en_plot=en_plot_, slope=0.05)
-        #film_ref_td = window(film_ref_td, win_len=12, shift=0, en_plot=en_plot_, slope=0.05)
+        film_td = window(film_td, win_len=8, shift=0, en_plot=en_plot_, slope=0.05)
+        film_ref_td = window(film_ref_td, win_len=8, shift=0, en_plot=en_plot_, slope=0.05)
 
         film_ref_fd, film_fd = do_fft(film_ref_td), do_fft(film_td)
 
@@ -222,7 +224,7 @@ class Image:
         # film_fd = phase_correction(film_fd, fit_range=(0.,8 1.6), extrapolate=False, ret_fd=True, en_plot=True)
 
         # phi = self.get_phase(point)
-        phi = np.angle(film_fd[:, 1]/film_ref_fd[:, 1])
+        phi = np.angle(film_fd[:, 1] / film_ref_fd[:, 1])
 
         freqs = film_ref_fd[:, 0].real
         zero = np.zeros_like(freqs, dtype=complex)
@@ -232,10 +234,9 @@ class Image:
 
         d_list = [inf, d_sub, d_film, inf]
 
-        n_sub = tmm_eval(self.sub_image, sub_point, freq_range=freq_range, en_plot=en_plot_)
+        n_sub = tmm_eval(self.sub_image, sub_point, freq_range=freq_range, en_plot=False)
 
-        # phase_shift = np.exp(-1j * (d_sub + np.sum(d_film)) * omega / c_thz)
-        phase_shift = np.ones_like(omega)
+        phase_shift = np.exp(-1j * (d_sub + np.sum(d_film)) * omega / c_thz)
 
         # film_ref_interpol = self._ref_interpolation(measurement, selected_freq_=selected_freq_, ret_cart=True)
 
@@ -254,14 +255,14 @@ class Image:
             return amp_loss + phi_loss
 
         def cost(p, freq_idx_):
-            n = array([1, n_sub[freq_idx_, 1], p[0] + 1j * p[1], 1])
+            n = array([1, n_sub[freq_idx_, 1], p[0] + 1j * p[1], 1], dtype=complex)
             # n = array([1, 1.9+1j*0.1, p[0] + 1j * p[1], 1])
             lam_vac = c_thz / freqs[freq_idx_]
-            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
+            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[freq_idx_]
 
             # t_meas_fd = film_fd[freq_idx_, 1] / film_ref_fd[freq_idx_, 1]
 
-            sam_tmm_fd = t_tmm_fd * film_ref_fd[freq_idx_, 1] * phase_shift[freq_idx_]
+            sam_tmm_fd = t_tmm_fd * film_ref_fd[freq_idx_, 1]
 
             amp_loss = (np.abs(sam_tmm_fd) - np.abs(film_fd[freq_idx_, 1])) ** 2
             phi_loss = (np.angle(t_tmm_fd) - phi[freq_idx_]) ** 2
@@ -274,27 +275,31 @@ class Image:
             if f_idx_ not in f_opt_idx:
                 continue
 
-            if (1.2 < freq) * (freq < 2.5):
-                # bounds_ = [(1, 175), (0, 175)]
-                bounds_ = shgo_bounds.copy()
-            elif 2.5 < freq:
-                # bounds_ = [(1, 6), (50, 150)]
-                bounds_ = shgo_bounds.copy()
+            if self.sample_idx == 3:
+                if (0.0 < freq) * (freq < 0.5):
+                    bounds_ = [(80, 175), (60, 120)]
+                    # bounds_ = shgo_bounds.copy()
+                elif 0.5 < freq:
+                    bounds_ = [(30, 100), (35, 60)]
+                    #bounds_ = shgo_bounds.copy()
+                else:
+                    bounds_ = shgo_bounds.copy()
             else:
                 bounds_ = shgo_bounds.copy()
 
             cost_ = cost
-            if freq <= 4.0:
-                if freq <= 0.20:
-                    res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=4)
-                else:
-                    iters = initial_shgo_iters - 3
-                    res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=iters + 2)
-                    while (res.fun > 1e-10) and (point[0] < 55):
-                        iters += 1
-                        res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=iters)
-                        if iters >= 4:
-                            break
+            if freq <= 0.20:
+                res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=4)
+            elif freq <= 2.0:
+                iters = initial_shgo_iters
+                res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=iters)
+                while res.fun > 1e-14:
+                    iters += 1
+                    res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=iters)
+                    if iters >= initial_shgo_iters + 3:
+                        break
+            else:
+                res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=4)
 
             n_opt[f_idx_] = res.x[0] + 1j * res.x[1]
             epsilon_r[f_idx_] = n_opt[f_idx_] ** 2
@@ -707,7 +712,7 @@ class Image:
 
         fit_slice = (f >= 1.0) * (f <= 1.5)
         p = np.polyfit(f[fit_slice], phi[fit_slice], 1)
-        phi = phi - p[1].real # 2*pi*int(p[1].real / (2*pi))
+        phi = phi - p[1].real  # 2*pi*int(p[1].real / (2*pi))
         """
         plt.figure("aeee")
         plt.plot(phi, label=str(self.data_path))
@@ -1193,9 +1198,9 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 0
+    sample_idx = 3
 
-    meas_dir_sub = data_dir / "Uncoated" / "s1"
+    meas_dir_sub = data_dir / "Uncoated" / "s4"
     sub_image = Image(data_path=meas_dir_sub)
 
     # meas_dir = data_dir / "s1_new_area_20_07_2023" / "Image0"
@@ -1210,7 +1215,7 @@ if __name__ == '__main__':
     meas_dir = data_dir / "s4_new_area" / "Image0"
     # meas_dir = data_dir / "Edge_4pp2" / "s4"  # old image
     # meas_dir = data_dir / "Edge_4pp2_s2_redo" / "s2"  # s2
-    meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
+    # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
 
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
@@ -1249,12 +1254,12 @@ if __name__ == '__main__':
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    # film_image.plot_image(quantity="p2p")
+    film_image.plot_image(quantity="p2p")
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
     # film_image.plot_point(10.5, -10.5)
-    film_image.plot_conductivity_spectrum(30, -10, en_all_plots=False)
-    film_image.plot_refractive_index(30, -10, en_all_plots=False)
+    film_image.plot_conductivity_spectrum(20, -10, en_all_plots=True)
+    film_image.plot_refractive_index(20, -10, en_all_plots=False)
     # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
     # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=3, segment_width=0)

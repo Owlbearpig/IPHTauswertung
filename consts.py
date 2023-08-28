@@ -12,7 +12,7 @@ sample_labels = ["(200 nm Ag)", "(500 nm Al:ZnO)", "(200 nm Ag + 500 nm Al:ZnO)"
 # sample_labels = ["(200 nm Ag)", "(500 nm Al:ZnO)", "(200 nm Ag)", "(200 nm ITO)"] # layer 1
 # sample_labels = ["(200 nm Ag)", "(500 nm Al:ZnO)", "(500 nm Al:ZnO)", "(200 nm ITO)"] # layer 2
 # sample_thicknesses = [0.0002, 0.0005, [0.0002, 0.0005], 0.0002]  # in mm
-film_thicknesses = [0.0002, 0.0005, 0.0007, 0.0002]  # in mm
+film_thicknesses = [0.000200, 0.0005, 0.0007, 0.0002]  # in mm
 shgo_bounds_film = [[(1, 600), (0, 600)],
                     [(5, 27), (10, 27)],
                     # [(50, 300), (50, 300), (5, 70), (10, 75)],
@@ -29,10 +29,10 @@ shgo_bounds_sub = [[(1.5, 1.9), (0.01, 0.30)],
                    [(1.5, 1.9), (0.01, 0.40)],
                    ] # original
 """
-shgo_bounds_sub = [[(1.1, 2.5), (0.01, 0.30)],
-                   [(1.1, 2.5), (0.01, 0.30)],
-                   [(1.1, 2.5), (0.01, 0.30)],
-                   [(1.1, 2.5), (0.01, 0.30)],
+shgo_bounds_sub = [[(1.6, 2.1), (0.01, 0.30)],
+                   [(1.6, 2.1), (0.01, 0.30)],
+                   [(1.6, 2.1), (0.01, 0.30)],
+                   [(1.6, 2.1), (0.01, 0.30)],
                    ]
 
 shgo_bounds_drude = [[(0, 1e7), (0, 1)],
@@ -42,9 +42,9 @@ shgo_bounds_drude = [[(0, 1e7), (0, 1)],
                      ]
 td_scales = [50, 1, 50, 1]
 
-initial_shgo_iters = 7
+initial_shgo_iters = 5
 # d_sub = 0.070  # mm
-d_sub = 0.043  # mm
+d_sub = 0.070  # mm
 angle_in = 0 * pi / 180
 drude_fit_range = (0.3, 2.0)
 
