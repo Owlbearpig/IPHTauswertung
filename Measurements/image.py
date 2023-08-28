@@ -8,7 +8,7 @@ import matplotlib as mpl
 from consts import *
 import numpy as np
 import matplotlib.ticker as ticker
-from functions import do_fft, do_ifft, phase_correction, unwrap, window, polyfit, f_axis_idx_map
+from functions import do_fft, do_ifft, phase_correction, unwrap, window, polyfit, f_axis_idx_map, to_db
 from functions import remove_spikes
 from Measurements.measurements import get_all_measurements, MeasurementType
 from tmm_slim import coh_tmm
@@ -228,7 +228,9 @@ class Image:
 
         freqs = film_ref_fd[:, 0].real
         zero = np.zeros_like(freqs, dtype=complex)
+        one = np.ones_like(freqs, dtype=complex)
         omega = 2 * pi * freqs
+
 
         f_opt_idx = f_axis_idx_map(freqs, freq_range)
 
@@ -239,6 +241,25 @@ class Image:
         phase_shift = np.exp(-1j * (d_sub + np.sum(d_film)) * omega / c_thz)
 
         # film_ref_interpol = self._ref_interpolation(measurement, selected_freq_=selected_freq_, ret_cart=True)
+
+        def calc_model(n_model, ret_t=False):
+            n_list_ = array([one, n_sub[:, 1], n_model, one], dtype=complex).T
+            ts_tmm_fd = np.zeros_like(freqs, dtype=complex)
+            for f_idx_, freq_ in enumerate(freqs):
+                if np.isclose(freq_, 0):
+                    continue
+                lam_vac = c_thz / freq_
+                n = n_list_[f_idx_]
+                t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[f_idx_]
+                ts_tmm_fd[f_idx_] = t_tmm_fd
+
+            sam_tmm_fd_ = array([freqs, ts_tmm_fd * film_ref_fd[:, 1]]).T
+            sam_tmm_td_ = do_ifft(sam_tmm_fd_)
+
+            if ret_t:
+                return ts_tmm_fd
+            else:
+                return sam_tmm_td_, sam_tmm_fd_
 
         def cost_no_unwrap(p, freq_idx_):  # works
             n = array([1, n_sub[freq_idx_, 1], p[0] + 1j * p[1], 1])
@@ -309,6 +330,31 @@ class Image:
                   f"n: {np.round(n_opt[f_idx_], 3)}, at {np.round(freqs[f_idx_], 3)} THz, "
                   f"loss: {res.fun}")
             print(f"Substrate refractive index: {np.round(n_sub[f_idx_, 1], 3)}\n")
+
+        if en_plot_:
+            sam_tmm_shgo_td, sam_tmm_shgo_fd = calc_model(n_opt)
+            noise_floor = np.mean(20 * np.log10(np.abs(film_ref_fd[film_ref_fd[:, 0] > 6.0, 1])))
+            plt.figure("Spectrum coated")
+            plt.title("Spectrum coated")
+            plt.plot(film_ref_fd[plot_range1, 0], to_db(film_ref_fd[plot_range1, 1]) - noise_floor, label="Reference")
+            plt.plot(sam_tmm_shgo_fd[plot_range1, 0], to_db(sam_tmm_shgo_fd[plot_range1, 1]) - noise_floor,
+                     label="TMM fit")
+            plt.plot(film_fd[plot_range1, 0], to_db(film_fd[plot_range1, 1]) - noise_floor, label="Coated",
+                     zorder=2)
+            plt.xlabel("Frequency (THz)")
+            plt.ylabel("Amplitude (dB)")
+
+            t_tmm = calc_model(n_opt, ret_t=True)
+            phi_tmm = np.angle(t_tmm)
+            plt.figure("Phase coated")
+            plt.title("Phases coated")
+            plt.plot(freqs[plot_range_sub], phi[plot_range_sub], label="Measured", linewidth=1.5)
+            plt.plot(freqs[plot_range_sub], phi_tmm[plot_range_sub], label="TMM", linewidth=1.5)
+
+            plt.figure("Time domain")
+            plt.plot(sam_tmm_shgo_td[:, 0], sam_tmm_shgo_td[:, 1], linewidth=2)
+            plt.plot(film_ref_td[:, 0], film_ref_td[:, 1], label="Ref Meas", linewidth=2)
+            plt.plot(film_td[:, 0], film_td[:, 1], label="Sam Meas", linewidth=2)
 
         if en_smoothen:
             sigma = remove_spikes(sigma)
