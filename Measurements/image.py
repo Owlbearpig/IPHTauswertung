@@ -237,7 +237,7 @@ class Image:
 
         f_opt_idx = f_axis_idx_map(freqs, freq_range)
 
-        d_list = [inf, d_sub, d_film, inf]
+        d_list = array([inf, d_sub, d_film, inf], dtype=float)
 
         n_sub = tmm_eval(self.sub_image, sub_point, freq_range=freq_range, en_plot=False)
 
@@ -265,6 +265,7 @@ class Image:
             else:
                 return sam_tmm_td_, sam_tmm_fd_
 
+
         def cost_no_unwrap(p, freq_idx_):  # works
             n = array([1, n_sub[freq_idx_, 1], p[0] + 1j * p[1], 1])
 
@@ -278,6 +279,59 @@ class Image:
             phi_loss = (np.angle(sam_tmm_fd) - np.angle(film_fd[freq_idx_, 1])) ** 2
 
             return amp_loss + phi_loss
+
+        """
+        def cost_test(p, freq_idx_):
+            n = array([1, n_sub[freq_idx_, 1], p[0] + 1j * p[1], 1], dtype=complex)
+            # n = array([1, 1.9+1j*0.1, p[0] + 1j * p[1], 1])
+            lam_vac = c_thz / freqs[freq_idx_]
+
+            n_list = array(n)
+            num_layers = n_list.size
+
+            th_list = list_snell(n_list, th_0)
+
+            kz_list = 2 * np.pi * n_list * np.cos(th_list) / lam_vac
+
+            delta = kz_list * d_list
+
+            # t_list[i,j] and r_list[i,j] are transmission and reflection amplitudes,
+            # respectively, coming from i, going to j. Only need to calculate this when
+            # j=i+1. (2D array is overkill but helps avoid confusion.)
+            t_list = np.zeros((num_layers, num_layers), dtype=complex)
+            r_list = np.zeros((num_layers, num_layers), dtype=complex)
+            for i in range(num_layers - 1):
+                t_list[i, i + 1] = interface_t(pol, n_list[i], n_list[i + 1],
+                                               th_list[i], th_list[i + 1])
+                r_list[i, i + 1] = interface_r(pol, n_list[i], n_list[i + 1],
+                                               th_list[i], th_list[i + 1])
+
+            M_list = np.zeros((num_layers, 2, 2), dtype=complex)
+            for i in range(1, num_layers - 1):
+                M_list[i] = (1 / t_list[i, i + 1]) * np.dot(
+                    make_2x2_array(np.exp(-1j * delta[i]), 0, 0, np.exp(1j * delta[i]),
+                                   dtype=complex),
+                    make_2x2_array(1, r_list[i, i + 1], r_list[i, i + 1], 1, dtype=complex))
+            Mtilde = make_2x2_array(1, 0, 0, 1, dtype=complex)
+            for i in range(1, num_layers - 1):
+                Mtilde = np.dot(Mtilde, M_list[i])
+            Mtilde = np.dot(make_2x2_array(1, r_list[0, 1], r_list[0, 1], 1,
+                                           dtype=complex) / t_list[0, 1], Mtilde)
+
+            # Net complex transmission and reflection amplitudes
+            t_tmm_fd = phase_shift[freq_idx_] / Mtilde[0, 0]
+            
+            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[freq_idx_]
+
+            # t_meas_fd = film_fd[freq_idx_, 1] / film_ref_fd[freq_idx_, 1]
+
+            sam_tmm_fd = t_tmm_fd * film_ref_fd[freq_idx_, 1]
+
+            amp_loss = (np.abs(sam_tmm_fd) - np.abs(film_fd[freq_idx_, 1])) ** 2
+            phi_loss = (np.angle(t_tmm_fd) - phi[freq_idx_]) ** 2
+
+            return amp_loss + phi_loss
+        """
 
         def cost(p, freq_idx_):
             n = array([1, n_sub[freq_idx_, 1], p[0] + 1j * p[1], 1], dtype=complex)
@@ -303,10 +357,10 @@ class Image:
 
             if self.sample_idx == 3:
                 if (0.0 < freq) * (freq < 0.5):
-                    bounds_ = [(80, 175), (60, 120)]
+                    bounds_ = [(70, 175), (40, 120)]
                     # bounds_ = shgo_bounds.copy()
                 elif 0.5 < freq:
-                    bounds_ = [(30, 100), (35, 60)]
+                    bounds_ = [(30, 100), (15, 60)]
                     #bounds_ = shgo_bounds.copy()
                 else:
                     bounds_ = shgo_bounds.copy()
@@ -314,7 +368,7 @@ class Image:
                 bounds_ = shgo_bounds.copy()
 
             cost_ = cost
-            if freq <= 0.20:
+            if freq <= 0.150:
                 res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=initial_shgo_iters)
             elif freq <= 2.0:
                 res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=initial_shgo_iters)
@@ -325,7 +379,7 @@ class Image:
                     if iters >= initial_shgo_iters + 3:
                         break
             else:
-                res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=4)
+                res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=initial_shgo_iters)
 
             n_opt[f_idx_] = res.x[0] + 1j * res.x[1]
             epsilon_r[f_idx_] = n_opt[f_idx_] ** 2
@@ -1309,9 +1363,9 @@ if __name__ == '__main__':
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
     # film_image.plot_point(10.5, -10.5)
-    film_image.plot_conductivity_spectrum(20, -10, en_all_plots=True)
-    film_image.plot_refractive_index(20, -10, en_all_plots=False)
-    # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
+    film_image.plot_conductivity_spectrum(-4, -1, en_all_plots=True)
+    film_image.plot_refractive_index(-4, -1, en_all_plots=False)
+    film_image.plot_image(quantity="Conductivity", selected_freq=1.250)
     # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=3, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=5, segment_width=0)
