@@ -42,7 +42,7 @@ shgo_bounds_drude = [[(0, 1e7), (0, 1)],
                      ]
 td_scales = [50, 1, 50, 1]
 
-initial_shgo_iters = 5
+initial_shgo_iters = 3
 # d_sub = 0.070  # mm
 d_sub = 0.070  # mm
 angle_in = 0 * pi / 180

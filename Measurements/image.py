@@ -2,6 +2,7 @@ import itertools
 import random
 import re
 import timeit
+from functools import partial
 from itertools import product
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -16,6 +17,8 @@ from tmm_slim import coh_tmm
 from mpl_settings import mpl_style_params, fmt
 from scipy.optimize import shgo
 from Evaluation.sub_eval_tmm_numerical import tmm_eval
+
+shgo = partial(shgo, workers=1)
 
 
 class Image:
@@ -255,6 +258,7 @@ class Image:
 
             sam_tmm_fd_ = array([freqs, ts_tmm_fd * film_ref_fd[:, 1]]).T
             sam_tmm_td_ = do_ifft(sam_tmm_fd_)
+            sam_tmm_td_[:, 0] -= sam_tmm_td_[0, 0]
 
             if ret_t:
                 return ts_tmm_fd
@@ -290,6 +294,7 @@ class Image:
 
             return amp_loss + phi_loss
 
+
         res = None
         sigma, epsilon_r, n_opt = zero.copy(), zero.copy(), zero.copy()
         for f_idx_, freq in enumerate(freqs):
@@ -310,10 +315,10 @@ class Image:
 
             cost_ = cost
             if freq <= 0.20:
-                res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=4)
+                res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=initial_shgo_iters)
             elif freq <= 2.0:
+                res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=initial_shgo_iters)
                 iters = initial_shgo_iters
-                res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=iters)
                 while res.fun > 1e-14:
                     iters += 1
                     res = shgo(cost_, bounds=bounds_, args=(f_idx_,), iters=iters)
@@ -348,11 +353,11 @@ class Image:
             phi_tmm = np.angle(t_tmm)
             plt.figure("Phase coated")
             plt.title("Phases coated")
-            plt.plot(freqs[plot_range_sub], phi[plot_range_sub], label="Measured", linewidth=1.5)
-            plt.plot(freqs[plot_range_sub], phi_tmm[plot_range_sub], label="TMM", linewidth=1.5)
+            plt.plot(freqs[plot_range_sub], phi[plot_range_sub], label="Measured", linewidth=2)
+            plt.plot(freqs[plot_range_sub], phi_tmm[plot_range_sub], label="TMM", linewidth=2)
 
             plt.figure("Time domain")
-            plt.plot(sam_tmm_shgo_td[:, 0], sam_tmm_shgo_td[:, 1], linewidth=2)
+            plt.plot(sam_tmm_shgo_td[:, 0], sam_tmm_shgo_td[:, 1], linewidth=2, label="TMM")
             plt.plot(film_ref_td[:, 0], film_ref_td[:, 1], label="Ref Meas", linewidth=2)
             plt.plot(film_td[:, 0], film_td[:, 1], label="Sam Meas", linewidth=2)
 

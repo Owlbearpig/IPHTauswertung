@@ -126,6 +126,7 @@ def zero_pad(data_td, length=100):
 
 def window(data_td, win_len=None, win_start=None, shift=None, en_plot=False, slope=0.15):
     t, y = data_td[:, 0], data_td[:, 1]
+    t -= t[0]
     pulse_width = 10  # ps
     dt = np.mean(np.diff(t))
 
