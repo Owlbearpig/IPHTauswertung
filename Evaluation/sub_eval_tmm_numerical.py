@@ -115,16 +115,16 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
                 cost_ = cost
                 iters = initial_shgo_iters - 3
                 print(f"Frequency: {freqs[f_idx_]} (THz), (idx: {f_idx_})")
-                res = shgo(cost_, bounds=bounds, args=(f_idx_,), iters=iters - 2)
-                while res.fun > 1e-10:
+                res_ = shgo(cost_, bounds=bounds, args=(f_idx_,), iters=iters - 2)
+                while res_.fun > 1e-10:
                     iters += 1
-                    res = shgo(cost_, bounds=bounds, args=(f_idx_,), iters=iters)
+                    res_ = shgo(cost_, bounds=bounds, args=(f_idx_,), iters=iters)
                     if iters >= max_iters:
                         break
 
-                print(res.x, res.fun)
+                print(res_.x, res_.fun)
 
-                return res
+                return res_
 
             n_sub = np.ones_like(freqs, dtype=complex)
             for f_idx, freq in enumerate(freqs):

@@ -18,7 +18,7 @@ from mpl_settings import mpl_style_params, fmt
 from scipy.optimize import shgo
 from Evaluation.sub_eval_tmm_numerical import tmm_eval
 
-shgo = partial(shgo, workers=1)
+# shgo = partial(shgo, workers=1)
 
 
 class Image:
@@ -221,6 +221,9 @@ class Image:
         film_td = window(film_td, win_len=8, shift=0, en_plot=en_plot_, slope=0.05)
         film_ref_td = window(film_ref_td, win_len=8, shift=0, en_plot=en_plot_, slope=0.05)
 
+        film_td[:, 0] -= film_td[0, 0]
+        film_ref_td[:, 0] -= film_ref_td[0, 0]
+
         film_ref_fd, film_fd = do_fft(film_ref_td), do_fft(film_td)
 
         # film_ref_fd = phase_correction(film_ref_fd, fit_range=(0.8, 1.6), extrapolate=False, ret_fd=True, en_plot=True)
@@ -233,7 +236,6 @@ class Image:
         zero = np.zeros_like(freqs, dtype=complex)
         one = np.ones_like(freqs, dtype=complex)
         omega = 2 * pi * freqs
-
 
         f_opt_idx = f_axis_idx_map(freqs, freq_range)
 
@@ -357,10 +359,10 @@ class Image:
 
             if self.sample_idx == 3:
                 if (0.0 < freq) * (freq < 0.5):
-                    bounds_ = [(70, 175), (40, 120)]
+                    bounds_ = [(60, 175), (20, 120)]
                     # bounds_ = shgo_bounds.copy()
                 elif 0.5 < freq:
-                    bounds_ = [(30, 100), (15, 60)]
+                    bounds_ = [(30, 100), (1, 60)]
                     #bounds_ = shgo_bounds.copy()
                 else:
                     bounds_ = shgo_bounds.copy()
@@ -383,7 +385,8 @@ class Image:
 
             n_opt[f_idx_] = res.x[0] + 1j * res.x[1]
             epsilon_r[f_idx_] = n_opt[f_idx_] ** 2
-            sigma[f_idx_] = 1j * (1 - epsilon_r[f_idx_]) * epsilon_0 * omega[f_idx_] * THz
+            sigma[f_idx_] = 1j * (1 - epsilon_r[f_idx_]) * epsilon_0 * omega[f_idx_] * THz # "WORKS"
+            # sigma[f_idx_] = 1j * epsilon_r[f_idx_] * epsilon_0 * omega[f_idx_] * THz
             # sigma[f_idx_] = - 1j * epsilon_r[f_idx_] * epsilon_0 * omega[f_idx_] * THz
             print(f"Result: {np.round(sigma[f_idx_] * 10 ** -6, 5)} (MS/m), "
                   f"n: {np.round(n_opt[f_idx_], 3)}, at {np.round(freqs[f_idx_], 3)} THz, "
@@ -409,11 +412,15 @@ class Image:
             plt.title("Phases coated")
             plt.plot(freqs[plot_range_sub], phi[plot_range_sub], label="Measured", linewidth=2)
             plt.plot(freqs[plot_range_sub], phi_tmm[plot_range_sub], label="TMM", linewidth=2)
+            plt.xlabel("Frequency (THz)")
+            plt.ylabel("Phase difference (rad)")
 
             plt.figure("Time domain")
-            plt.plot(sam_tmm_shgo_td[:, 0], sam_tmm_shgo_td[:, 1], linewidth=2, label="TMM")
+            plt.plot(sam_tmm_shgo_td[:, 0], 50*sam_tmm_shgo_td[:, 1], linewidth=2, label="TMM (x50)")
             plt.plot(film_ref_td[:, 0], film_ref_td[:, 1], label="Ref Meas", linewidth=2)
-            plt.plot(film_td[:, 0], film_td[:, 1], label="Sam Meas", linewidth=2)
+            plt.plot(film_td[:, 0], 50*film_td[:, 1], label="Sam Meas (x50)", linewidth=2)
+            plt.xlabel("Time (ps)")
+            plt.ylabel("Amplitude (arb. u.)")
 
         if en_smoothen:
             sigma = remove_spikes(sigma)
@@ -1352,19 +1359,21 @@ if __name__ == '__main__':
                "invert_x": True, "invert_y": True}  # s4
     options = {"cbar_min": 1.5e5, "cbar_max": 4.5e5, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": True}  # s4 new phase correction
-    options = {"cbar_min": 0, "cbar_max": np.inf, "log_scale": True, "color_map": "viridis",
+    """
+    options = {"cbar_min": 5e5, "cbar_max": 1.5e7, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": True}  # s1 new phase correction
+    """
     film_image = Image(meas_dir, sub_image, sample_idx, options)
     # s1, s2, s3 = [-10, 50, -3, 27]
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    film_image.plot_image(quantity="p2p")
+    # film_image.plot_image(quantity="p2p")
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
     # film_image.plot_point(10.5, -10.5)
-    film_image.plot_conductivity_spectrum(-4, -1, en_all_plots=True)
-    film_image.plot_refractive_index(-4, -1, en_all_plots=False)
+    film_image.plot_conductivity_spectrum(10, -5, en_all_plots=True)
+    film_image.plot_refractive_index(10, -5, en_all_plots=False)
     film_image.plot_image(quantity="Conductivity", selected_freq=1.250)
     # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=3, segment_width=0)

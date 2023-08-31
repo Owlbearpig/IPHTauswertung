@@ -38,7 +38,7 @@ def mpl_style_params():
     rcParams['font.family'] = "sans-serif"
 
     if 'posix' in cur_os:
-        result_dir = Path(r"/home/alex/MEGA/AG/Projects/THz Conductivity/IPHT/Results")
+        result_dir = Path(r"/home/alex/MEGA/AG/Projects/Conductivity/IPHT/Results/Modeling")
     else:
         result_dir = Path(r"E:\Mega\AG\Projects\THz Conductivity\IPHT\Results")
     rcParams["savefig.directory"] = result_dir
