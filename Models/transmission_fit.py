@@ -21,17 +21,16 @@ options = {"cbar_min": 1e5, "cbar_max": 3.5e5, "log_scale": False, "color_map": 
 film_image = Image(meas_dir_film, sub_image, sample_idx, options)
 
 eval_point = (10, -5)
-save_file = f"sigma_x{eval_point[0]}_y{eval_point[1]}.npy"
+save_file = f"t_abs_x{eval_point[0]}_y{eval_point[1]}.npy"
 
 data_range = slice(10, 158)
 try:
-    sigma_meas = np.load(save_file)
+    t_abs_meas = np.load(save_file)
 except FileNotFoundError:
-    sigma_meas = film_image.plot_conductivity_spectrum(*eval_point, freq_range=(0.10, 2.5), smoothen=False)
-    sigma_meas[:, 1] *= 0.01
-    np.save(save_file, sigma_meas)
+    t_abs, t_abs_meas = film_image.plot_transmittance(*eval_point, freq_range=(0.10, 2.5))
+    np.save(save_file, t_abs_meas)
 
-sigma_meas = sigma_meas[data_range, :]
+t_abs_meas = t_abs_meas[data_range, :]
 
 
 def drude(f_, tau_, n_, m_eff_, *args):
@@ -48,52 +47,6 @@ def drude(f_, tau_, n_, m_eff_, *args):
     sigma = sigma_t0 + sigma_t1
 
     return sigma
-
-
-# def drude_smith(f_, tau_, n_, m_eff_, c, *args):
-def drude_smith(f_, tau_, sigma0, c, *args):
-    tau = tau_ * 1e3
-    # n = n_ * 1e6  # n in SI: cm^-3 -> m^-3
-    # m_eff = m_eff_ * electron_mass
-    omega = 2 * pi * f_
-    q = elementary_charge
-
-    # sigma0 = n * q ** 2 * tau / m_eff
-    f1 = sigma0 / (1 - 1j * omega * tau)
-    f2 = 1 + c / (1 - 1j * omega * tau)
-    sigma = f1 * f2
-
-    return sigma
-
-
-def ssftc_not(f_, tau_, n_, m_eff_, omega_p_, *args):
-    tau = tau_
-    n = n_ * 1e6  # n in SI: cm^-3 -> m^-3
-    m_eff = m_eff_ * electron_mass
-    omega = 2 * pi * f_
-    omega_p = omega_p_
-    q = elementary_charge
-
-    f1 = n * q ** 2 / m_eff
-    den = 1 - (1j * tau * (omega - omega_p ** 2 / omega))
-
-    return f1 * tau / den
-
-
-def ssftc(freq_, f_, tau_, s0_, tau_t_, s0_t_, *args):
-    tau = tau_ * 1e-3  # tau_ in fs -> ps
-
-    tau_t = tau_t_  # ps
-    omega = 2 * pi * freq_
-
-    s_f = s0_ / (1 - 1j * omega * tau)
-
-    s_t = s0_t_ * (-1j * omega * tau_t) / np.log(1 - 1j * omega * tau_t)
-
-    s1 = f_ / s_f
-    s2 = (1 - f_) / s_t
-
-    return 1 / (s1 + s2)
 
 
 model = ssftc
@@ -211,10 +164,6 @@ button = Button(resetax, 'Reset', hovercolor='0.975')
 
 def reset(event):
     tau_slider.reset()
-    tau_slider_t.reset()
-    f_slider.reset()
-    s0_slider.reset()
-    s0_slider_t.reset()
 
 
 button.on_clicked(reset)

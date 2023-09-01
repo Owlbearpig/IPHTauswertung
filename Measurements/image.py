@@ -13,7 +13,7 @@ from functions import do_fft, do_ifft, phase_correction, unwrap, window, polyfit
 from functions import remove_spikes
 from Measurements.measurements import get_all_measurements, MeasurementType
 from tmm_slim import coh_tmm
-# from tmm import coh_tmm
+from tmm import coh_tmm as coh_tmm_full
 from mpl_settings import mpl_style_params, fmt
 from scipy.optimize import shgo
 from Evaluation.sub_eval_tmm_numerical import tmm_eval
@@ -218,8 +218,8 @@ class Image:
         film_td = film_measurement.get_data_td()
         film_ref_td = self.get_ref(both=False, coords=point)
 
-        film_td = window(film_td, win_len=8, shift=0, en_plot=en_plot_, slope=0.05)
-        film_ref_td = window(film_ref_td, win_len=8, shift=0, en_plot=en_plot_, slope=0.05)
+        film_td = window(film_td, win_len=8, shift=0, en_plot=en_plot_, slope=0.95)
+        film_ref_td = window(film_ref_td, win_len=8, shift=0, en_plot=en_plot_, slope=0.95)
 
         film_td[:, 0] -= film_td[0, 0]
         film_ref_td[:, 0] -= film_ref_td[0, 0]
@@ -247,8 +247,11 @@ class Image:
 
         # film_ref_interpol = self._ref_interpolation(measurement, selected_freq_=selected_freq_, ret_cart=True)
 
-        def calc_model(n_model, ret_t=False):
+        def calc_model(n_model, ret_t=False, ret_T_and_R=False):
             n_list_ = array([one, n_sub[:, 1], n_model, one], dtype=complex).T
+
+            R = np.zeros_like(freqs, dtype=complex)
+            T = np.zeros_like(freqs, dtype=complex)
             ts_tmm_fd = np.zeros_like(freqs, dtype=complex)
             for f_idx_, freq_ in enumerate(freqs):
                 if np.isclose(freq_, 0):
@@ -257,11 +260,17 @@ class Image:
                 n = n_list_[f_idx_]
                 t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[f_idx_]
                 ts_tmm_fd[f_idx_] = t_tmm_fd
+                if ret_T_and_R:
+                    dict_res = coh_tmm_full("s", n, d_list, angle_in, lam_vac)
+                    T[f_idx_] = dict_res["T"]
+                    R[f_idx_] = dict_res["R"]
 
             sam_tmm_fd_ = array([freqs, ts_tmm_fd * film_ref_fd[:, 1]]).T
             sam_tmm_td_ = do_ifft(sam_tmm_fd_)
             sam_tmm_td_[:, 0] -= sam_tmm_td_[0, 0]
 
+            if ret_T_and_R:
+                return T, R
             if ret_t:
                 return ts_tmm_fd
             else:
@@ -350,7 +359,6 @@ class Image:
 
             return amp_loss + phi_loss
 
-
         res = None
         sigma, epsilon_r, n_opt = zero.copy(), zero.copy(), zero.copy()
         for f_idx_, freq in enumerate(freqs):
@@ -361,9 +369,11 @@ class Image:
                 if (0.0 < freq) * (freq < 0.5):
                     bounds_ = [(60, 175), (20, 120)]
                     # bounds_ = shgo_bounds.copy()
-                elif 0.5 < freq:
-                    bounds_ = [(30, 100), (1, 60)]
+                elif (0.5 < freq) * (2.5 < freq):
+                    bounds_ = [(30, 90), (30, 90)]
                     #bounds_ = shgo_bounds.copy()
+                elif freq > 2.5:
+                    bounds_ = [(30, 60), (30, 60)]
                 else:
                     bounds_ = shgo_bounds.copy()
             else:
@@ -385,10 +395,11 @@ class Image:
 
             n_opt[f_idx_] = res.x[0] + 1j * res.x[1]
             epsilon_r[f_idx_] = n_opt[f_idx_] ** 2
-            sigma[f_idx_] = 1j * (1 - epsilon_r[f_idx_]) * epsilon_0 * omega[f_idx_] * THz # "WORKS"
+            sigma[f_idx_] = 1j * (1 - epsilon_r[f_idx_]) * epsilon_0 * omega[f_idx_] * THz  # "WORKS"
+            sigma[f_idx_] = 1j * (4 - epsilon_r[f_idx_]) * epsilon_0 * omega[f_idx_] * THz * 0.01  # 1/(Ohm cm)
             # sigma[f_idx_] = 1j * epsilon_r[f_idx_] * epsilon_0 * omega[f_idx_] * THz
             # sigma[f_idx_] = - 1j * epsilon_r[f_idx_] * epsilon_0 * omega[f_idx_] * THz
-            print(f"Result: {np.round(sigma[f_idx_] * 10 ** -6, 5)} (MS/m), "
+            print(f"Result: {np.round(sigma[f_idx_], 1)} (S/cm), "
                   f"n: {np.round(n_opt[f_idx_], 3)}, at {np.round(freqs[f_idx_], 3)} THz, "
                   f"loss: {res.fun}")
             print(f"Substrate refractive index: {np.round(n_sub[f_idx_, 1], 3)}\n")
@@ -399,10 +410,8 @@ class Image:
             plt.figure("Spectrum coated")
             plt.title("Spectrum coated")
             plt.plot(film_ref_fd[plot_range1, 0], to_db(film_ref_fd[plot_range1, 1]) - noise_floor, label="Reference")
-            plt.plot(sam_tmm_shgo_fd[plot_range1, 0], to_db(sam_tmm_shgo_fd[plot_range1, 1]) - noise_floor,
-                     label="TMM fit")
-            plt.plot(film_fd[plot_range1, 0], to_db(film_fd[plot_range1, 1]) - noise_floor, label="Coated",
-                     zorder=2)
+            plt.plot(film_fd[plot_range1, 0], to_db(film_fd[plot_range1, 1]) - noise_floor, label="Coated")
+            plt.plot(sam_tmm_shgo_fd[plot_range1, 0], to_db(sam_tmm_shgo_fd[plot_range1, 1]) - noise_floor, label="TMM fit")
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Amplitude (dB)")
 
@@ -425,16 +434,27 @@ class Image:
         if en_smoothen:
             sigma = remove_spikes(sigma)
 
+        t_abs_meas = np.abs(film_fd[:, 1] / film_ref_fd[:, 1])
+        T, R = calc_model(n_opt, ret_T_and_R=True)
+        t_abs = np.sqrt(T)
+
         if len(f_opt_idx) != 1:
             sigma_ret = np.array([freqs[f_opt_idx], sigma[f_opt_idx]], dtype=complex).T
             epsilon_r_ret = np.array([freqs[f_opt_idx], epsilon_r[f_opt_idx]], dtype=complex).T
             n = np.array([freqs[f_opt_idx], n_opt[f_opt_idx]], dtype=complex).T
+            t_abs = np.array([freqs[f_opt_idx], t_abs[f_opt_idx]], dtype=complex).T
+            R = np.array([freqs[f_opt_idx], R[f_opt_idx]], dtype=complex).T
+            t_abs_meas = np.array([freqs[f_opt_idx], t_abs_meas[f_opt_idx]], dtype=complex).T
         else:
             sigma_ret = sigma[f_opt_idx]
             epsilon_r_ret = epsilon_r[f_opt_idx]
             n = n_opt[f_opt_idx]
+            t_abs = t_abs[f_opt_idx]
+            R = R[f_opt_idx]
+            t_abs_meas = t_abs_meas[f_opt_idx]
 
-        ret = {"loss": res.fun, "sigma": sigma_ret, "epsilon_r": epsilon_r_ret, "n": n}
+        ret = {"loss": res.fun, "sigma": sigma_ret, "epsilon_r": epsilon_r_ret, "n": n,
+               "t_abs": t_abs, "R": R, "t_abs_meas": t_abs_meas}
 
         return ret
 
@@ -886,18 +906,18 @@ class Image:
         plt.plot(sam_td[:, 0], td_scale * sam_td[:, 1], label=label + f"\n(Amplitude x {td_scale})")
 
     def evaluate_point(self, x, y, **kwargs):
-        measurement = self.get_measurement(x, y)
-        res_ = self._tmm_film_fit(measurement, **kwargs)
+        key_ = f"{x} {y}"
+        if key_ in self._evaluated_points.keys():
+            res_ = self._evaluated_points[key_]
+        else:
+            measurement = self.get_measurement(x, y)
+            res_ = self._tmm_film_fit(measurement, **kwargs)
+            self._evaluated_points[key_] = res_
 
         return res_
 
     def plot_refractive_index(self, x, y, **kwargs):
-        key_ = f"{x} {y}"
-        if key_ in self._evaluated_points.keys():
-            res = self._evaluated_points[key_]
-        else:
-            res = self.evaluate_point(x, y, **kwargs)
-            self._evaluated_points[key_] = res
+        res = self.evaluate_point(x, y, **kwargs)
 
         n_ = res["n"]
 
@@ -917,13 +937,48 @@ class Image:
 
         return n_
 
-    def plot_conductivity_spectrum(self, x, y, **kwargs):
-        key_ = f"{x} {y}"
-        if key_ in self._evaluated_points.keys():
-            res = self._evaluated_points[key_]
+    def plot_transmittance(self, x, y, **kwargs):
+        res = self.evaluate_point(x, y, **kwargs)
+
+        t_abs = res["t_abs"]
+        t_abs_meas = res["t_abs_meas"]
+
+        if not plt.fignum_exists("Amp. transmission"):
+            fig = plt.figure("Amp. transmission")
+            ax_ = fig.add_subplot(111)
         else:
-            res = self.evaluate_point(x, y, **kwargs)
-            self._evaluated_points[key_] = res
+            plt.figure("Amp. transmission")
+            ax_ = plt.gca()
+
+        freqs = t_abs[:, 0].real
+
+        ax_.set_ylabel("Amplitude transmission")
+        ax_.set_xlabel("Frequency (THz)")
+        ax_.plot(freqs, t_abs[:, 1], label="TMM")
+        ax_.plot(freqs, t_abs_meas[:, 1], label="Measured")
+
+        return t_abs, t_abs_meas
+
+    def plot_reflectance(self, x, y, **kwargs):
+        res = self.evaluate_point(x, y, **kwargs)
+
+        R = res["R"]
+
+        if not plt.fignum_exists("Reflectance"):
+            fig = plt.figure("Reflectance")
+            ax_ = fig.add_subplot(111)
+        else:
+            plt.figure("Reflectance")
+            ax_ = plt.gca()
+
+        freqs = R[:, 0].real
+
+        ax_.set_ylabel("%")
+        ax_.set_xlabel("Frequency (THz)")
+        ax_.plot(freqs, R[:, 1], label="Reflectance")
+
+    def plot_conductivity_spectrum(self, x, y, **kwargs):
+        res = self.evaluate_point(x, y, **kwargs)
 
         sigma = res["sigma"]
 
@@ -1374,6 +1429,8 @@ if __name__ == '__main__':
     # film_image.plot_point(10.5, -10.5)
     film_image.plot_conductivity_spectrum(10, -5, en_all_plots=True)
     film_image.plot_refractive_index(10, -5, en_all_plots=False)
+    film_image.plot_transmittance(10, -5)
+    film_image.plot_reflectance(10, -5)
     film_image.plot_image(quantity="Conductivity", selected_freq=1.250)
     # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=3, segment_width=0)

@@ -330,7 +330,7 @@ def filtering(data_td, wn=(0.001, 9.999), filt_type="bandpass", order=5):
 
 def f_axis_idx_map(freqs, freq_range=None):
     if freq_range is None:
-        freq_range = (0.15, 4.00)
+        freq_range = (0.15, 3.25)
         f0_idx = int(np.argmin(np.abs(freqs - freq_range[0])))
         f1_idx = int(np.argmin(np.abs(freqs - freq_range[1])))
         f_idx = np.arange(f0_idx, f1_idx + 1)

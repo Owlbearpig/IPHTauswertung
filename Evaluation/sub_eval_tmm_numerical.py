@@ -18,8 +18,8 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
     sub_td = sub_image.get_point(x=eval_point_[0], y=eval_point_[1], sub_offset=True, both=False)
     sub_ref_td = sub_image.get_ref(both=False, coords=eval_point_)
 
-    # sub_td = window(sub_td, win_len=12, shift=0, en_plot=False)
-    # sub_ref_td = window(sub_ref_td, win_len=12, shift=0, en_plot=False)
+    sub_td = window(sub_td, win_len=12, shift=0, en_plot=False, slope=0.99)
+    sub_ref_td = window(sub_ref_td, win_len=12, shift=0, en_plot=False, slope=0.99)
 
     sub_ref_fd, sub_fd = do_fft(sub_ref_td), do_fft(sub_td)
 

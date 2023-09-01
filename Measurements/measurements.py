@@ -107,7 +107,6 @@ class Measurement:
 
         return self._data_fd
 
-
 def get_all_measurements(post_process=None, data_dir_=None):
     measurements = []
 

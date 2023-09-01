@@ -57,7 +57,7 @@ c_thz = c0 * 1e-6  # c in um / ps (1e6 / 1e12 = 1e-6) or um * THz
 d_sub, d_film = 70, 0.2  # um
 d_list_sub = [np.inf, d_sub, np.inf]  # um
 d_list_film = [np.inf, d_sub, d_film, np.inf]  # um
-angle_in = 0  # rad
+angle_in = 0*pi/180  # rad
 
 meas_plot_range = slice(10, 500)
 f_axis = sub_ref_fd[:, 0].real  # THz
