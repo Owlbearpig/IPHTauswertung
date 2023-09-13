@@ -11,8 +11,10 @@ from scipy.optimize import shgo
 from mpl_settings import mpl_style_params
 mpl_style_params()
 
-base_path_sub = Path(r"/home/ftpuser/ftp/Data/IPHT/Uncoated/s4")
-base_path_film = Path(r"/home/ftpuser/ftp/Data/IPHT/s4_new_area/Image0")
+base_path_sub = Path(r"E:\measurementdata\IPHT\Uncoated\s4")
+base_path_film = Path(r"E:\measurementdata\IPHT\s4_new_area\Image0")
+# base_path_sub = Path(r"/home/ftpuser/ftp/Data/IPHT/Uncoated/s4")
+# base_path_film = Path(r"/home/ftpuser/ftp/Data/IPHT/s4_new_area/Image0")
 
 sub_ref_file = base_path_sub / "2022-11-16T23-01-01.059419-5x5_sample_100avg-reference-X_6.000 mm-Y_10.000 mm.txt"
 sub_file = base_path_sub / "2022-11-16T23-02-06.239541-5x5_sample_100avg-sample-X_40.000 mm-Y_10.000 mm.txt"

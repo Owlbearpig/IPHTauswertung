@@ -14,7 +14,7 @@ mpl_style_params()
 
 sample_idx = 3
 film_eval_pt = (10, -5)
-sub_eval_pt = (40, 10) # (37.5, 18.5) # high p2p
+sub_eval_pt = (40, 10)  # (37.5, 18.5) # high p2p
 
 meas_dir_sub = data_dir / "Uncoated" / "s4"
 sub_image = Image(data_path=meas_dir_sub, options={"load_mpl_style": False})
@@ -27,7 +27,6 @@ options = {"cbar_min": 1e5, "cbar_max": 3.5e5, "log_scale": False, "color_map": 
            "load_mpl_style": False, "invert_x": True, "invert_y": True}  # s4
 
 film_image = Image(meas_dir_film, sub_image, sample_idx, options)
-
 
 save_file = f"t_abs_x{film_eval_pt[0]}_y{film_eval_pt[1]}.npy"
 
@@ -42,12 +41,49 @@ t_abs_meas = t_abs_meas[data_range, :]
 
 freq_axis = n_sub[:, 0].real
 freq_axis_idx = f_axis_idx_map(freq_axis, freq_range=(0.10, 3.0))
+omega = 2 * pi * freq_axis
+
 init_sigma0 = 3.38  # 1 / (mOhm cm)
+
+
+def transmission_simple(freq_axis_, sigma0_):
+    sigma0_ = 1e5 * sigma0_  # 1/(mOhm cm) (1/(1e-3*1e-2)) = 1e5 -> S / m
+    d_list = array([np.inf, 0.090, 0.0002, np.inf], dtype=float)  # in mm
+    n_film_ = (1 + 1j) * np.sqrt(sigma0_ / (4 * pi * epsilon_0 * freq_axis_ * 1e12))
+    n_sub_ = n_sub[:, 1]
+
+    plt.figure("Film refractive index")
+    plt.title("Film refractive index")
+    plt.plot(freq_axis_, n_film_.real, label="RIdx real")
+    plt.plot(freq_axis_, n_film_.imag, label="RIdx imag")
+    plt.xlabel("Frequency (THz)")
+    plt.ylabel("Refractive index")
+
+    t12 = 2 * 1 / (n_sub_ + 1)
+    r12 = (1 - n_sub_) / (n_sub_ + 1)
+
+    t23 = 2 * n_sub_ / (n_sub_ + n_film_)
+    r23 = (n_sub_ - n_film_) / (n_sub_ + n_film_)
+
+    t34 = 2 * n_film_ / (1 + n_film_)
+    r34 = (n_film_ - 1) / (1 + n_film_)
+
+    t_enu = t12 * t23 * t34 * np.exp(1j * n_film_ * omega * d_list[2] / c_thz) * np.exp(
+        1j * n_sub_ * omega * d_list[1] / c_thz)
+    t_den = 1 + r12 * r23 * np.exp(2 * 1j * omega * d_list[2] * n_film_ / c_thz)
+
+    t_sim = t_enu / t_den
+
+    freq_axis_ = freq_axis_[freq_axis_idx]
+    t_sim_abs_ = np.abs(t_sim[freq_axis_idx])
+    t_sim_abs = np.array([freq_axis_, t_sim_abs_], dtype=float).T
+
+    return t_sim_abs
 
 
 def transmission(freq_axis_, sigma0_):
     sigma0_ = 1e5 * sigma0_  # 1/(mOhm cm) (1/(1e-3*1e-2)) = 1e5 -> S / m
-    d_list = array([np.inf, 0.090, 0.0002, np.inf], dtype=float)  # in mm
+    d_list = array([np.inf, 0.070, 0.0002, np.inf], dtype=float)  # in mm
     n_film = (1 + 1j) * np.sqrt(sigma0_ / (4 * pi * epsilon_0 * freq_axis_ * 1e12))
     plt.figure("Film refractive index")
     plt.title("Film refractive index")
@@ -64,10 +100,10 @@ def transmission(freq_axis_, sigma0_):
         t_tmm_[freq_idx_] = coh_tmm("s", n, d_list, angle_in, lam_vac)
 
     freq_axis_ = freq_axis_[freq_axis_idx]
-    t_tmm_abs = np.abs(t_tmm_[freq_axis_idx])
-    t_abs_tmm = np.array([freq_axis_, t_tmm_abs], dtype=float).T
+    t_tmm_abs_ = np.abs(t_tmm_[freq_axis_idx])
+    t_tmm_abs = np.array([freq_axis_, t_tmm_abs_], dtype=float).T
 
-    return t_abs_tmm
+    return t_tmm_abs
 
 
 fig, ax = plt.subplots()
