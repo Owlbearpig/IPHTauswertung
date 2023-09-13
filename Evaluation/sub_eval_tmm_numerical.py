@@ -193,10 +193,26 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
                      label="TMM fit")
             plt.plot(sub_fd[plot_range1, 0], to_db(sub_fd[plot_range1, 1]) - noise_floor, label="Uncoated substrate",
                      zorder=2)
+            """
+            plt.plot(sub_ref_fd[plot_range1, 0], np.abs(sub_ref_fd[plot_range1, 1]), label="Reference")
+            plt.plot(sub_fd[plot_range1, 0], np.abs(sub_fd[plot_range1, 1]), label="Uncoated substrate")
+            plt.plot(sam_tmm_shgo_fd[plot_range1, 0], np.abs(sam_tmm_shgo_fd[plot_range1, 1]), label="TMM fit")
+            """
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Amplitude (dB)")
 
             t_tmm = calc_model(n_sub, ret_t=True)
+
+            t_abs_meas = np.abs(sub_fd[:, 1] / sub_ref_fd[:, 1])
+            t_abs_tmm = np.abs(t_tmm)
+
+            plt.figure("Amplitude transmission substrate")
+            plt.title("Amplitude transmission substrate")
+            plt.plot(sub_ref_fd[plot_range_sub, 0], t_abs_meas[plot_range_sub], label="Measured")
+            plt.plot(freqs[plot_range_sub], t_abs_tmm[plot_range_sub], label="TMM")
+            plt.xlabel("Frequency (THz)")
+            plt.ylabel("Amplitude transmission")
+
             phi_tmm = np.angle(t_tmm)
             plt.figure("Phase substrate")
             plt.title("Phases substrates")
@@ -226,6 +242,13 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
             # ax2.grid(color='blue')
 
             fig.tight_layout()  # otherwise the right y-label is slightly clipped
+
+            for fig_label_ in plt.get_figlabels():
+                plt.figure(fig_label_)
+                ax_ = plt.gca()
+                handles_, labels_ = ax_.get_legend_handles_labels()
+                if labels_:
+                    plt.legend()
 
     if d_ is not None:
         return tv_n, tv_k, eq

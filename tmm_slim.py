@@ -8,7 +8,7 @@ def coh_tmm(pol, n_list, d_list, th_0, lam_vac):
 
     """
     # Convert lists to numpy arrays if they're not already.
-    n_list = array(n_list)
+    n_list = array(n_list, dtype=complex)
     d_list = array(d_list, dtype=float)
 
     # Input tests

@@ -8,6 +8,9 @@ from functions import to_db
 from pathlib import Path
 from scipy.optimize import shgo
 
+from mpl_settings import mpl_style_params
+mpl_style_params()
+
 base_path_sub = Path(r"/home/ftpuser/ftp/Data/IPHT/Uncoated/s4")
 base_path_film = Path(r"/home/ftpuser/ftp/Data/IPHT/s4_new_area/Image0")
 
@@ -34,10 +37,10 @@ film_ref_td = remove_offset(film_ref_td)
 film_td = remove_offset(film_td)
 
 # apply window
-sub_ref_td = window(sub_ref_td, win_len=8, shift=0, en_plot=False, slope=0.05)
-sub_td = window(sub_td, win_len=8, shift=0, en_plot=False, slope=0.05)
-film_ref_td = window(film_ref_td, win_len=8, shift=0, en_plot=False, slope=0.05)
-film_td = window(film_td, win_len=8, shift=0, en_plot=False, slope=0.05)
+sub_ref_td = window(sub_ref_td, win_len=12, shift=0, en_plot=False, slope=0.99)
+sub_td = window(sub_td, win_len=12, shift=0, en_plot=False, slope=0.99)
+film_ref_td = window(film_ref_td, win_len=12, shift=0, en_plot=False, slope=0.99)
+film_td = window(film_td, win_len=12, shift=0, en_plot=False, slope=0.99)
 
 # fft
 sub_ref_fd = do_fft(sub_ref_td, en_plots=False)

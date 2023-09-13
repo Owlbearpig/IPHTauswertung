@@ -1,18 +1,26 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from numpy import pi
+from numpy import pi, array
 from matplotlib.widgets import Slider, Button
-from scipy.constants import elementary_charge, electron_mass
+from scipy.constants import elementary_charge, electron_mass, epsilon_0
 from Measurements.image import Image
-from consts import data_dir
+from consts import data_dir, c_thz, angle_in
 from mpl_settings import mpl_style_params
+from tmm_slim import coh_tmm
+from sub_eval_tmm_numerical import tmm_eval
+from functions import f_axis_idx_map
 
 mpl_style_params()
 
 sample_idx = 3
+film_eval_pt = (10, -5)
+sub_eval_pt = (40, 10) # (37.5, 18.5) # high p2p
 
 meas_dir_sub = data_dir / "Uncoated" / "s4"
 sub_image = Image(data_path=meas_dir_sub, options={"load_mpl_style": False})
+sub_image.plot_image()
+
+n_sub = tmm_eval(sub_image, eval_point_=sub_eval_pt, en_plot=True)
 
 meas_dir_film = data_dir / "s4_new_area" / "Image0"
 options = {"cbar_min": 1e5, "cbar_max": 3.5e5, "log_scale": False, "color_map": "viridis",
@@ -20,150 +28,83 @@ options = {"cbar_min": 1e5, "cbar_max": 3.5e5, "log_scale": False, "color_map": 
 
 film_image = Image(meas_dir_film, sub_image, sample_idx, options)
 
-eval_point = (10, -5)
-save_file = f"t_abs_x{eval_point[0]}_y{eval_point[1]}.npy"
 
-data_range = slice(10, 158)
+save_file = f"t_abs_x{film_eval_pt[0]}_y{film_eval_pt[1]}.npy"
+
+data_range = slice(10, 300)
 try:
     t_abs_meas = np.load(save_file)
 except FileNotFoundError:
-    t_abs, t_abs_meas = film_image.plot_transmittance(*eval_point, freq_range=(0.10, 2.5))
+    t_abs, t_abs_meas = film_image.plot_transmittance(*film_eval_pt, freq_range=(0.10, 3.0))
     np.save(save_file, t_abs_meas)
 
 t_abs_meas = t_abs_meas[data_range, :]
 
-
-def drude(f_, tau_, n_, m_eff_, *args):
-    tau = tau_
-    n = n_ * 1e6  # n in SI: cm^-3 -> m^-3
-    m_eff = m_eff_ * electron_mass
-    omega = 2 * pi * f_
-    q = elementary_charge
-
-    sigma0 = n * q ** 2 * tau / m_eff
-    sigma_t0 = sigma0 / (1 + omega ** 2 * tau ** 2)
-    sigma_t1 = 1j * omega * tau * sigma_t0
-
-    sigma = sigma_t0 + sigma_t1
-
-    return sigma
+freq_axis = n_sub[:, 0].real
+freq_axis_idx = f_axis_idx_map(freq_axis, freq_range=(0.10, 3.0))
+init_sigma0 = 3.38  # 1 / (mOhm cm)
 
 
-model = ssftc
+def transmission(freq_axis_, sigma0_):
+    sigma0_ = 1e5 * sigma0_  # 1/(mOhm cm) (1/(1e-3*1e-2)) = 1e5 -> S / m
+    d_list = array([np.inf, 0.090, 0.0002, np.inf], dtype=float)  # in mm
+    n_film = (1 + 1j) * np.sqrt(sigma0_ / (4 * pi * epsilon_0 * freq_axis_ * 1e12))
+    plt.figure("Film refractive index")
+    plt.title("Film refractive index")
+    plt.plot(freq_axis_, n_film.real, label="RIdx real")
+    plt.plot(freq_axis_, n_film.imag, label="RIdx imag")
+    plt.xlabel("Frequency (THz)")
+    plt.ylabel("Refractive index")
 
-f = np.linspace(0.1, 3.5, 1000)
-f = np.logspace(11, 13, 1000) / 1e12
+    t_tmm_ = np.zeros_like(freq_axis_, dtype=complex)
+    for freq_idx_ in freq_axis_idx:
+        n = array([1, n_sub[freq_idx_, 1], n_film[freq_idx_], 1], dtype=complex)
 
-init_tau = 20  # tau in fs
-init_tau_t = 0.4  # tau_t in ps
-# init_n = 4.08e16  # in cm^-3
-# init_m_eff = 0.46  # in electron mass
-# init_m_eff = 0.10  # in electron mass
-# init_c = 1
-init_f = 0.84
-init_s0 = 1000  # 100
-init_s0_t = 100  # 5.7
+        lam_vac = c_thz / freq_axis_[freq_idx_]
+        t_tmm_[freq_idx_] = coh_tmm("s", n, d_list, angle_in, lam_vac)
+
+    freq_axis_ = freq_axis_[freq_axis_idx]
+    t_tmm_abs = np.abs(t_tmm_[freq_axis_idx])
+    t_abs_tmm = np.array([freq_axis_, t_tmm_abs], dtype=float).T
+
+    return t_abs_tmm
+
 
 fig, ax = plt.subplots()
-vals0 = model(f, init_f, init_tau, init_s0, init_tau_t, init_s0_t)
-# vals0 = model(f, init_tau, init_s0, init_f)
-# vals0 = model(f, init_tau, init_s0)
-line0, = ax.plot(f, vals0.real, label="Sigma real", lw=2, color="blue")
-line1, = ax.plot(f, vals0.imag, label="Sigma imag", lw=2, color="red")
-
-y_min = -2500  # -60
-y_max = 5000  # 120
-#ax.set_ylim((y_min, y_max))
-
-ax.scatter(sigma_meas[:, 0].real, sigma_meas[:, 1].real, label="Sigma real measured", color="blue", s=1)
-ax.scatter(sigma_meas[:, 0].real, sigma_meas[:, 1].imag, label="Sigma imag measured", color="red", s=1)
-
-ax.set_ylabel("Conductivity ($\Omega^{-1} cm^{-1}$)")
+vals0 = transmission(freq_axis, init_sigma0)
+line0, = ax.plot(vals0[:, 0].real, vals0[:, 1], label="TMM", lw=2, color="blue")
+ax.scatter(t_abs_meas[:, 0], t_abs_meas[:, 1], label="Measured", color="red", s=2)
+ax.set_ylabel("Amplitude transmission")
+ax.set_xlabel("Frequency (THz)")
 ax.legend()
 
-ax.set_xlabel('Frequency (THz)')
 fig.subplots_adjust(left=0.25, bottom=0.25)
-
-ax_f = fig.add_axes([0.25, 0.05, 0.65, 0.03])
-f_slider = Slider(
-    ax=ax_f,
-    label='f',
+ax_sigma0 = fig.add_axes([0.25, 0.10, 0.65, 0.03])
+sigma0_slider = Slider(
+    ax=ax_sigma0,
+    label=r"$\sigma_{0}$ $(m \Omega cm)^{-1}$",
     valmin=0,
-    valmax=1,
-    valinit=init_f,
+    valmax=20,
+    valinit=init_sigma0,
     orientation="horizontal"
-)
-
-ax_tau = fig.add_axes([0.25, 0.1, 0.65, 0.03])
-tau_slider = Slider(
-    ax=ax_tau,
-    label='Tau [fs]',
-    valmin=1,
-    valmax=10000,
-    valinit=init_tau,
-    orientation="horizontal"
-)
-
-ax_tau_t = fig.add_axes([0.25, 0.15, 0.65, 0.03])
-tau_slider_t = Slider(
-    ax=ax_tau_t,
-    label='Tau_t [ps]',
-    valmin=0.01,
-    valmax=5,
-    valinit=init_tau_t,
-    orientation="horizontal"
-)
-
-ax_s0 = fig.add_axes([0.1, 0.25, 0.0225, 0.63])
-s0_slider = Slider(
-    ax=ax_s0,
-    label="$\sigma_{0}$",
-    valmin=1,
-    valmax=10000,
-    valinit=init_s0,
-    orientation="vertical"
-)
-
-ax_s0_t = fig.add_axes([0.05, 0.25, 0.0225, 0.63])
-s0_slider_t = Slider(
-    ax=ax_s0_t,
-    label="$\sigma_{0,t}$",
-    valmin=1,
-    valmax=5000,
-    valinit=init_s0_t,
-    orientation="vertical"
 )
 
 
 def update(val):
-    new_vals = model(f, f_slider.val, tau_slider.val, s0_slider.val, tau_slider_t.val, s0_slider_t.val)
-    # new_vals = model(f, tau_slider.val, s0_slider.val, f_slider.val)
-    # new_vals = model(f, tau_slider.val, s0_slider.val)
-    sig_real, sig_imag = new_vals.real, new_vals.imag
-    line0.set_ydata(new_vals.real)
-    line1.set_ydata(new_vals.imag)
-
-    sig_real_min, sig_real_max = np.min(sig_real), np.max(sig_real)
-    sig_imag_min, sig_imag_max = np.min(sig_imag), np.max(sig_imag)
-
-    ax.set_ylim((y_min, y_max))
+    new_vals = transmission(freq_axis, sigma0_slider.val)
+    line0.set_ydata(new_vals[:, 1].real)
 
     fig.canvas.draw_idle()
 
 
-f_slider.on_changed(update)
-tau_slider.on_changed(update)
-tau_slider_t.on_changed(update)
-
-s0_slider.on_changed(update)
-s0_slider_t.on_changed(update)
+sigma0_slider.on_changed(update)
 
 resetax = fig.add_axes([0.8, 0.025, 0.1, 0.04])
-button = Button(resetax, 'Reset', hovercolor='0.975')
+button = Button(resetax, "Reset", hovercolor="0.975")
 
 
 def reset(event):
-    tau_slider.reset()
+    sigma0_slider.reset()
 
 
 button.on_clicked(reset)
