@@ -114,7 +114,7 @@ class Image:
     def _set_info(self):
         parts = self.sams[0].filepath.parts
         if self.sample_idx is None:
-            self.sample_idx = sample_names.index(parts[-2])
+            self.sample_idx = 0
         # self.name = f"Sample {self.sample_idx + 1} {parts[-3]}"
         self.name = f"Sample {self.sample_idx + 1}"
 
@@ -977,6 +977,16 @@ class Image:
         ax_.set_xlabel("Frequency (THz)")
         ax_.plot(freqs, R[:, 1], label="Reflectance")
 
+    def plot_transmission(self, x, y):
+        measurement = self.get_measurement(x, y)
+        sam_td = measurement.get_data_td()
+        ref_td = measurement.get_ref(both=False, coords=(x, y))
+        ref_fd, sam_fd = do_fft(ref_td), do_fft(sam_td)
+        t_abs = np.abs(sam_fd/ref_fd)
+        plt.figure("Transmission")
+        plt.plot(t_abs)
+
+
     def plot_conductivity_spectrum(self, x, y, **kwargs):
         res = self.evaluate_point(x, y, **kwargs)
 
@@ -1427,11 +1437,11 @@ if __name__ == '__main__':
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
     # film_image.plot_point(10.5, -10.5)
-    film_image.plot_conductivity_spectrum(10, -5, en_all_plots=True)
-    film_image.plot_refractive_index(10, -5, en_all_plots=False)
-    film_image.plot_transmittance(10, -5)
-    film_image.plot_reflectance(10, -5)
-    film_image.plot_image(quantity="Conductivity", selected_freq=1.250)
+    #film_image.plot_conductivity_spectrum(10, -5, en_all_plots=True)
+    #film_image.plot_refractive_index(10, -5, en_all_plots=False)
+    #film_image.plot_transmittance(10, -5)
+    #film_image.plot_reflectance(10, -5)
+    #film_image.plot_image(quantity="Conductivity", selected_freq=1.250)
     # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=3, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=5, segment_width=0)

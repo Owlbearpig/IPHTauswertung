@@ -7,7 +7,7 @@ from Measurements.image import Image
 from consts import data_dir, c_thz, angle_in
 from mpl_settings import mpl_style_params
 from tmm_slim import coh_tmm
-from sub_eval_tmm_numerical import tmm_eval
+from Evaluation.sub_eval_tmm_numerical import tmm_eval
 from functions import f_axis_idx_map
 
 mpl_style_params()
@@ -19,7 +19,7 @@ sub_eval_pt = (40, 10)  # (37.5, 18.5) # high p2p
 meas_dir_sub = data_dir / "Uncoated" / "s4"
 sub_image = Image(data_path=meas_dir_sub, options={"load_mpl_style": False})
 sub_image.plot_image()
-
+sub_image.plot_transmission(*sub_eval_pt)
 n_sub = tmm_eval(sub_image, eval_point_=sub_eval_pt, en_plot=True)
 
 meas_dir_film = data_dir / "s4_new_area" / "Image0"
