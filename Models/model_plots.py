@@ -20,18 +20,25 @@ options = {"cbar_min": 1e5, "cbar_max": 3.5e5, "log_scale": False, "color_map": 
 
 film_image = Image(meas_dir_film, sub_image, sample_idx, options)
 
-eval_point = (10, -5)
+# eval_point = (10, -5)
+eval_point = (5, -2)
 save_file = f"sigma_x{eval_point[0]}_y{eval_point[1]}.npy"
+save_file_n = f"n_x{eval_point[0]}_y{eval_point[1]}.npy"
 
-data_range = slice(10, 158)
+data_range = slice(10, 300)
 try:
     sigma_meas = np.load(save_file)
+    n_meas = np.load(save_file_n)
 except FileNotFoundError:
-    sigma_meas = film_image.plot_conductivity_spectrum(*eval_point, freq_range=(0.10, 2.5), smoothen=False)
-    sigma_meas[:, 1] *= 0.01
+    sigma_meas = film_image.plot_conductivity_spectrum(*eval_point, freq_range=(0.10, 3.1), smoothen=False)
+    n_meas = film_image.plot_refractive_index(*eval_point)
+
     np.save(save_file, sigma_meas)
+    np.save(save_file_n, n_meas)
 
 sigma_meas = sigma_meas[data_range, :]
+plt.figure()
+plt.plot(n_meas[:, 1].imag)
 
 
 def drude(f_, tau_, n_, m_eff_, *args):

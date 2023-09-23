@@ -10,13 +10,16 @@ from consts import *
 import numpy as np
 import matplotlib.ticker as ticker
 from functions import do_fft, do_ifft, phase_correction, unwrap, window, polyfit, f_axis_idx_map, to_db
-from functions import remove_spikes
+from functions import remove_spikes, save_fig, export_array
 from Measurements.measurements import get_all_measurements, MeasurementType
 from tmm_slim import coh_tmm
 from tmm import coh_tmm as coh_tmm_full
 from mpl_settings import mpl_style_params, fmt
 from scipy.optimize import shgo
 from Evaluation.sub_eval_tmm_numerical import tmm_eval
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from scipy.ndimage import gaussian_filter
+
 
 # shgo = partial(shgo, workers=1)
 
@@ -218,8 +221,8 @@ class Image:
         film_td = film_measurement.get_data_td()
         film_ref_td = self.get_ref(both=False, coords=point)
 
-        film_td = window(film_td, win_len=8, shift=0, en_plot=en_plot_, slope=0.95)
-        film_ref_td = window(film_ref_td, win_len=8, shift=0, en_plot=en_plot_, slope=0.95)
+        film_td = window(film_td, win_len=12, shift=0, en_plot=en_plot_, slope=0.99)
+        film_ref_td = window(film_ref_td, win_len=12, shift=0, en_plot=en_plot_, slope=0.99)
 
         film_td[:, 0] -= film_td[0, 0]
         film_ref_td[:, 0] -= film_ref_td[0, 0]
@@ -242,10 +245,14 @@ class Image:
         d_list = array([inf, d_sub, d_film, inf], dtype=float)
 
         n_sub = tmm_eval(self.sub_image, sub_point, freq_range=freq_range, en_plot=False)
+        # n_sub[:, 1] = 1.7 + 1j*0.1
 
         phase_shift = np.exp(-1j * (d_sub + np.sum(d_film)) * omega / c_thz)
 
         # film_ref_interpol = self._ref_interpolation(measurement, selected_freq_=selected_freq_, ret_cart=True)
+        tau_ = 0.0102  # mm
+        alph_scat = (1 / d_list[1]) * ((n_sub[:, 1] - 1) * 4 * pi * tau_ * freqs / c_thz) ** 2
+        ampl_att_ = np.exp(-alph_scat * d_list[1])
 
         def calc_model(n_model, ret_t=False, ret_T_and_R=False):
             n_list_ = array([one, n_sub[:, 1], n_model, one], dtype=complex).T
@@ -275,7 +282,6 @@ class Image:
                 return ts_tmm_fd
             else:
                 return sam_tmm_td_, sam_tmm_fd_
-
 
         def cost_no_unwrap(p, freq_idx_):  # works
             n = array([1, n_sub[freq_idx_, 1], p[0] + 1j * p[1], 1])
@@ -348,7 +354,7 @@ class Image:
             n = array([1, n_sub[freq_idx_, 1], p[0] + 1j * p[1], 1], dtype=complex)
             # n = array([1, 1.9+1j*0.1, p[0] + 1j * p[1], 1])
             lam_vac = c_thz / freqs[freq_idx_]
-            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[freq_idx_]
+            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[freq_idx_] * ampl_att_[freq_idx_]
 
             # t_meas_fd = film_fd[freq_idx_, 1] / film_ref_fd[freq_idx_, 1]
 
@@ -365,15 +371,23 @@ class Image:
             if f_idx_ not in f_opt_idx:
                 continue
 
-            if self.sample_idx == 3:
-                if (0.0 < freq) * (freq < 0.5):
+            if len(f_opt_idx) == 1:
+                if self.sample_idx == 3:
+                    bounds_ = [(40, 80), (0, 40)]
+                else:
+                    bounds_ = [(1, 600), (0, 600)]
+            elif self.sample_idx == 3:
+                if (0.0 < freq) * (freq < 0.5) or (res is None):
                     bounds_ = [(60, 175), (20, 120)]
                     # bounds_ = shgo_bounds.copy()
-                elif (0.5 < freq) * (2.5 < freq):
-                    bounds_ = [(30, 90), (30, 90)]
-                    #bounds_ = shgo_bounds.copy()
-                elif freq > 2.5:
-                    bounds_ = [(30, 60), (30, 60)]
+                elif (0.5 < freq) * (freq < 2.0):
+                    bounds_ = [(res.x[0] - 15, res.x[0] + 15),
+                               (res.x[1] - 15, res.x[1] + 15), ]
+                    # bounds_ = [(20, 90), (20, 90)]
+                elif freq >= 2.5:
+                    bounds_ = [(res.x[0] - 15, res.x[0] + 15),
+                               (res.x[1] - 15, res.x[1] + 15), ]
+                    # bounds_ = [(1, 60), (1, 60)]
                 else:
                     bounds_ = shgo_bounds.copy()
             else:
@@ -396,7 +410,7 @@ class Image:
             n_opt[f_idx_] = res.x[0] + 1j * res.x[1]
             epsilon_r[f_idx_] = n_opt[f_idx_] ** 2
             sigma[f_idx_] = 1j * (1 - epsilon_r[f_idx_]) * epsilon_0 * omega[f_idx_] * THz  # "WORKS"
-            sigma[f_idx_] = 1j * (4 - epsilon_r[f_idx_]) * epsilon_0 * omega[f_idx_] * THz * 0.01  # 1/(Ohm cm)
+            # sigma[f_idx_] = 1j * (4 - epsilon_r[f_idx_]) * epsilon_0 * omega[f_idx_] * THz * 0.01  # 1/(Ohm cm)
             # sigma[f_idx_] = 1j * epsilon_r[f_idx_] * epsilon_0 * omega[f_idx_] * THz
             # sigma[f_idx_] = - 1j * epsilon_r[f_idx_] * epsilon_0 * omega[f_idx_] * THz
             print(f"Result: {np.round(sigma[f_idx_], 1)} (S/cm), "
@@ -411,7 +425,8 @@ class Image:
             plt.title("Spectrum coated")
             plt.plot(film_ref_fd[plot_range1, 0], to_db(film_ref_fd[plot_range1, 1]) - noise_floor, label="Reference")
             plt.plot(film_fd[plot_range1, 0], to_db(film_fd[plot_range1, 1]) - noise_floor, label="Coated")
-            plt.plot(sam_tmm_shgo_fd[plot_range1, 0], to_db(sam_tmm_shgo_fd[plot_range1, 1]) - noise_floor, label="TMM fit")
+            plt.plot(sam_tmm_shgo_fd[plot_range1, 0], to_db(sam_tmm_shgo_fd[plot_range1, 1]) - noise_floor,
+                     label="TMM fit")
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Amplitude (dB)")
 
@@ -425,9 +440,9 @@ class Image:
             plt.ylabel("Phase difference (rad)")
 
             plt.figure("Time domain")
-            plt.plot(sam_tmm_shgo_td[:, 0], 50*sam_tmm_shgo_td[:, 1], linewidth=2, label="TMM (x50)")
+            plt.plot(sam_tmm_shgo_td[:, 0], 50 * sam_tmm_shgo_td[:, 1], linewidth=2, label="TMM (x50)")
             plt.plot(film_ref_td[:, 0], film_ref_td[:, 1], label="Ref Meas", linewidth=2)
-            plt.plot(film_td[:, 0], 50*film_td[:, 1], label="Sam Meas (x50)", linewidth=2)
+            plt.plot(film_td[:, 0], 50 * film_td[:, 1], label="Sam Meas (x50)", linewidth=2)
             plt.xlabel("Time (ps)")
             plt.ylabel("Amplitude (arb. u.)")
 
@@ -457,6 +472,29 @@ class Image:
                "t_abs": t_abs, "R": R, "t_abs_meas": t_abs_meas}
 
         return ret
+
+    def get_transmittance(self, x, y, **kwargs):
+        measurement = self.get_measurement(x, y)
+
+        sam_td = measurement.get_data_td()
+        ref_td = self.get_ref(both=False, coords=(x, y))
+
+        sam_td = window(sam_td, win_len=12, shift=0, en_plot=False, slope=0.99)
+        ref_td = window(ref_td, win_len=12, shift=0, en_plot=False, slope=0.99)
+
+        sam_td[:, 0] -= sam_td[0, 0]
+        ref_td[:, 0] -= ref_td[0, 0]
+
+        ref_fd, sam_fd = do_fft(ref_td), do_fft(sam_td)
+
+        t_abs_meas = np.abs(sam_fd[:, 1] / ref_fd[:, 1])
+
+        if "freq_range" in kwargs.keys():
+            freq_idx = f_axis_idx_map(ref_fd[:, 0].real, kwargs["freq_range"])
+        else:
+            freq_idx = f_axis_idx_map(ref_fd[:, 0].real, None)
+
+        return array([ref_fd[freq_idx, 0].real, t_abs_meas[freq_idx]], dtype=float).T
 
     def _calc_power_grid(self, freq_range):
         def power(measurement_):
@@ -590,6 +628,20 @@ class Image:
 
         return grid_vals.real
 
+    def get_absorbance(self, point, en_plot=False):
+        sam_fd, sam_fd = self.get_point(*point, both=True)
+        ref_td, ref_fd = self.get_ref(both=True)
+
+        freqs = ref_fd[:, 0].real
+
+        absorb_ = 20 * np.log10(np.abs(ref_fd[:, 1] / sam_fd[:, 1]))
+
+        if en_plot:
+            plt.figure("Absorbance")
+            plt.plot(freqs, absorb_, label=point)
+
+        return array([freqs, absorb_]).T
+
     def plot_cond_vs_d(self, point=None, freq=None):
         if point is None:
             point = (33.0, 11.0)
@@ -649,6 +701,73 @@ class Image:
                     continue
 
         return grid_vals_smooth
+
+    def publication_image(self, selected_freq_):
+        info = self.image_info
+        grid_vals = self._calc_grid_vals(quantity="conductivity", selected_freq=selected_freq_)
+
+        full_extent = info["extent"]
+
+        # self.options["excluded_areas"] = [[-8, -7, -10, 5], [-10, 38, 3, 7], [37.5, 39, -14, 6]]
+        grid_vals = self._exclude_pixels(grid_vals)
+
+        if sample_idx == 3:
+            img_extent = [-8, 39.5, -14, 4.5]
+            v_min_, v_max_ = 1, 4
+        elif sample_idx == 0:
+            img_extent = [-10, 40, -13, 16]
+            v_min_, v_max_ = 5, 150
+        else:
+            exit("1")
+
+        dx, dy = info["dx"], info["dy"]
+        w0, w1 = int((img_extent[0] - full_extent[0]) / dx), int((img_extent[1] - full_extent[0]) / dx)
+        h0, h1 = int((img_extent[2] - full_extent[2]) / dy), int((img_extent[3] - full_extent[2]) / dy)
+
+        grid_vals *= 1e-5  # S/m -> mS/cm
+
+        grid_vals = grid_vals[w0:w1, h0:h1]
+        grid_vals = gaussian_filter(grid_vals, 0.55)
+
+        grid_vals[grid_vals < v_min_] = 0
+        grid_vals[grid_vals > v_max_] = 0
+
+        fig_label_ = f"sample{sample_idx + 1}"
+        fig = plt.figure(fig_label_)
+        ax = fig.add_subplot(111)
+        fig.subplots_adjust(left=0.2)
+
+        axes_extent = [img_extent[0] - self.image_info["dx"] / 2, img_extent[1] + self.image_info["dx"] / 2,
+                       img_extent[2] - self.image_info["dy"] / 2, img_extent[3] + self.image_info["dy"] / 2]
+
+        img = ax.imshow(grid_vals.transpose((1, 0)),
+                        vmin=v_min_, vmax=v_max_,
+                        origin="lower",
+                        cmap=plt.get_cmap("hot"),
+                        extent=axes_extent,
+                        )
+        ax.grid(visible=False)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.invert_xaxis()
+        ax.invert_yaxis()
+
+        if sample_idx == 3:
+            ax.text(*(35, 0), s="2 mm", color="black", horizontalalignment="center", fontsize=22)
+            ax.plot([34, 36], [0.5, 0.5], c="black", lw=4, zorder=1)
+        elif sample_idx == 0:
+            ax.text(*(-3, 14), s="2 mm", color="white", horizontalalignment="center", fontsize=22)
+            ax.plot([-4, -2], [14.5, 14.5], c="white", lw=4, zorder=1)
+        else:
+            exit("1")
+
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cbar = fig.colorbar(img, cax=cax)
+
+        cbar.set_label("Sheet conductivity (mS/cm)", rotation=270, labelpad=30)
+
+        save_fig(fig_label_)
 
     def plot_image(self, selected_freq=None, quantity="p2p", img_extent=None, flip_x=False):
         if quantity.lower() == "p2p":
@@ -757,7 +876,7 @@ class Image:
         return closest_meas
 
     def get_point(self, x, y, normalize=False, sub_offset=False, both=False, add_plot=False):
-        dx, dy, dt = self.image_info["dx"], self.image_info["dy"], self.image_info["dt"]
+        dt = self.image_info["dt"]
 
         x_idx, y_idx = self._coords_to_idx(x, y)
         y_ = self.image_data[x_idx, y_idx]
@@ -859,13 +978,13 @@ class Image:
             sam_td = self.get_point(x, y, sub_offset=True)
             ref_td = self.get_ref(sub_offset=True, coords=(x, y))
 
-            sam_td = window(sam_td, win_len=25, shift=0, en_plot=False, slope=0.05)
-            ref_td = window(ref_td, win_len=25, shift=0, en_plot=False, slope=0.05)
+            # sam_td = window(sam_td, win_len=12, shift=0, en_plot=False, slope=0.99)
+            # ref_td = window(ref_td, win_len=12, shift=0, en_plot=False, slope=0.99)
 
             ref_fd, sam_fd = do_fft(ref_td), do_fft(sam_td)
 
-            sam_td, sam_fd = phase_correction(sam_fd, fit_range=(0.8, 1.6), extrapolate=True, both=True)
-            ref_td, ref_fd = phase_correction(ref_fd, fit_range=(0.8, 1.6), extrapolate=True, both=True)
+            # sam_td, sam_fd = phase_correction(sam_fd, fit_range=(0.8, 1.6), extrapolate=True, both=True)
+            # ref_td, ref_fd = phase_correction(ref_fd, fit_range=(0.8, 1.6), extrapolate=True, both=True)
 
         else:
             ref_fd, sam_fd = do_fft(ref_td), do_fft(sam_td)
@@ -1149,7 +1268,10 @@ class Image:
         # vals = map_[f"s{s_idx + 1}_r{row_id}"][slice_]
         vals = map_[f"s{s_idx + 1}_r{row_id}"]
 
-        return vals[1:]
+        if s_idx == 3:
+            return vals[1:]
+        else:
+            return vals
 
     def _average_area(self, line_segment):
         p0, p1 = line_segment
@@ -1323,6 +1445,10 @@ class Image:
             for segment_idx, segment in enumerate(segments[str(segment_width)]):
                 _plot_line_segment(segment, segment_idx)
 
+        cols = [x, fit, _4pp_vals, thz_cond_vals[str(segment_width)]]
+        cols = [arr * 1e-5 for arr in cols]
+        export_array(*cols, file_name=f"cond_thz_vs_4pp_row{row_idx}_s{self.sample_idx + 1}")
+
         if corr_measure == "r2":
             return res["determination"] * np.sign(res["polynomial"][0])
         else:
@@ -1365,9 +1491,9 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 3
+    sample_idx = 0
 
-    meas_dir_sub = data_dir / "Uncoated" / "s4"
+    meas_dir_sub = data_dir / "Uncoated" / f"s{sample_idx + 1}"
     sub_image = Image(data_path=meas_dir_sub)
 
     # meas_dir = data_dir / "s1_new_area_20_07_2023" / "Image0"
@@ -1379,10 +1505,10 @@ if __name__ == '__main__':
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # 0.5 mm
     # meas_dir = data_dir / "s3_new_area" / "Image0"
 
-    meas_dir = data_dir / "s4_new_area" / "Image0"
+    # meas_dir = data_dir / "s4_new_area" / "Image0"
     # meas_dir = data_dir / "Edge_4pp2" / "s4"  # old image
     # meas_dir = data_dir / "Edge_4pp2_s2_redo" / "s2"  # s2
-    # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
+    meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
 
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
@@ -1412,12 +1538,13 @@ if __name__ == '__main__':
                "invert_x": False, "invert_y": False}  # s2 (idx 1) flipped
     options = {"cbar_min": 1e5, "cbar_max": 3.5e5, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": True}  # s4
-    options = {"cbar_min": 1.5e5, "cbar_max": 4.5e5, "log_scale": False, "color_map": "viridis",
+    options = {"cbar_min": 1.5e5, "cbar_max": 4.5e5, "log_scale": False, "color_map": "hot",
                "invert_x": True, "invert_y": True}  # s4 new phase correction
-    """
+    # """
     options = {"cbar_min": 5e5, "cbar_max": 1.5e7, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": True}  # s1 new phase correction
-    """
+    # """
+
     film_image = Image(meas_dir, sub_image, sample_idx, options)
     # s1, s2, s3 = [-10, 50, -3, 27]
     # film_image.plot_cond_vs_d()
@@ -1427,11 +1554,20 @@ if __name__ == '__main__':
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
     # film_image.plot_point(10.5, -10.5)
-    film_image.plot_conductivity_spectrum(10, -5, en_all_plots=True)
-    film_image.plot_refractive_index(10, -5, en_all_plots=False)
-    film_image.plot_transmittance(10, -5)
-    film_image.plot_reflectance(10, -5)
-    film_image.plot_image(quantity="Conductivity", selected_freq=1.250)
+    # film_image.plot_conductivity_spectrum(10, -5, en_all_plots=True)
+    # film_image.plot_refractive_index(10, -5, en_all_plots=False)
+    # film_image.plot_transmittance(10, -5)
+    # film_image.plot_reflectance(10, -5)
+    # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
+    # film_image.publication_image(selected_freq_=1.200)
+    film_image.publication_image(selected_freq_=0.800)
+
+    # s1 r3 and 4 are off due to sensitivity limit
+    #film_image.thz_vs_4pp(row_idx=1, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=2, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=3, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=4, segment_width=0)
+
     # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=3, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=5, segment_width=0)

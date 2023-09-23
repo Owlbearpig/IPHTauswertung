@@ -13,15 +13,44 @@ def do_fft(data_td, pos_freqs_only=True):
     freqs, data_fd = rfftfreq(n=len(data_td[:, 0]), d=dt), np.conj(rfft(data_td[:, 1]))
 
     return array([freqs, data_fd]).T
-    """
-    #freqs, data_fd = fftfreq(n=len(data_td[:, 0]), d=dt), np.conj(fft(data_td[:, 1]))
 
-    if pos_freqs_only:
-        post_freq_slice = freqs >= 0
-        return array([freqs[post_freq_slice], data_fd[post_freq_slice]]).T
-    else:
-        return array([freqs, data_fd]).T
-    """
+
+def export_spectral_array(arr, file_name="", freq_range=None, save_dir=None):
+    # assuming first column is frequency
+
+    if save_dir is None:
+        save_dir = ROOT_DIR / "Plotting" / "publication_plots"
+
+    file_path = save_dir / (str(file_name) + ".csv")
+
+    if freq_range is None:
+        freq_range = (arr[0, 0].real, arr[-1, 0].real)
+
+    f_idx_range = f_axis_idx_map(arr[:, 0].real, freq_range)
+    with open(file_path, "w") as file:
+        for i, pt in enumerate(arr[f_idx_range]):
+            s = ",".join([str(i), *[str(np.abs(val)) for val in pt]]) + "\n"
+            file.write(s)
+
+
+def export_array(*cols, file_name="", save_dir=None):
+    if save_dir is None:
+        save_dir = ROOT_DIR / "Plotting" / "publication_plots"
+
+    file_path = save_dir / (str(file_name) + ".csv")
+
+    max_col_len = max([len(col) for col in cols])
+    with open(file_path, "w") as file:
+        for i in range(max_col_len):
+            vals = []
+            for col in cols:
+                if i >= len(col):
+                    continue
+                vals.append(str(col[i]))
+
+            s = ",".join([str(i), *vals]) + "\n"
+            file.write(s)
+
 
 def do_ifft(data_fd, hermitian=True, shift=0, flip=False):
     freqs, y_fd = data_fd[:, 0].real, data_fd[:, 1]
@@ -196,8 +225,8 @@ def add_noise(data_fd, enabled=True, scale=0.05, seed=None, en_plots=False):
     if not enabled:
         return data_ret
 
-    noise_phase = np.random.normal(0, scale*0, len(data_fd[:, 0]))
-    noise_amp = np.random.normal(0, scale*1.5, len(data_fd[:, 0]))
+    noise_phase = np.random.normal(0, scale * 0, len(data_fd[:, 0]))
+    noise_amp = np.random.normal(0, scale * 1.5, len(data_fd[:, 0]))
 
     phi, magn = np.angle(data_fd[:, 1]), np.abs(data_fd[:, 1])
 
@@ -222,7 +251,7 @@ def add_noise(data_fd, enabled=True, scale=0.05, seed=None, en_plots=False):
         plt.legend()
         plt.show()
 
-    noisy_data = magn_noisy * np.exp(1j*phi_noisy)
+    noisy_data = magn_noisy * np.exp(1j * phi_noisy)
 
     data_ret[:, 1] = noisy_data.real + 1j * noisy_data.imag
 
@@ -278,14 +307,26 @@ def polyfit(x, y, degree, remove_worst_outlier=False):
 
     # https://stackoverflow.com/questions/893657/how-do-i-calculate-r-squared-using-python-and-numpy
 
-    slice_ = y > 0 #1.5e5
-    #slice_ = y > 1.5e5
+    slice_ = y > 0  # 1.5e5
+    # slice_ = y > 1.5e5
     x, y = x[slice_], y[slice_]
     if True:
         x, y = _remove_outlier(x, y)
     results = _fit(x, y)
 
     return results
+
+
+def save_fig(fig_label, save_dir=None, filename=None, **kwargs):
+    if filename is None:
+        filename = fig_label
+
+    if save_dir is None:
+        save_dir = Path(mpl.rcParams["savefig.directory"])
+
+    fig = plt.figure(fig_label)
+    fig.set_size_inches((16, 9), forward=False)
+    plt.savefig(save_dir / (filename.replace(" ", "_") + ".pdf"), bbox_inches='tight', dpi=300, **kwargs)
 
 
 def to_db(data_fd):
@@ -348,13 +389,13 @@ def f_axis_idx_map(freqs, freq_range=None):
 def remove_spikes(arr):
     # TODO pretty bad
     diff = np.diff(arr)
-    for i in range(1, len(arr)-1):
+    for i in range(1, len(arr) - 1):
         if i < 5:
-            avg_diff = np.mean(np.diff(arr[i:i+3]))
+            avg_diff = np.mean(np.diff(arr[i:i + 3]))
         else:
-            avg_diff = np.mean(np.diff(arr[i-3:i]))
+            avg_diff = np.mean(np.diff(arr[i - 3:i]))
 
         if diff[i] > avg_diff:
-            arr[i+1] = (arr[i] + arr[i+2])/2
+            arr[i + 1] = (arr[i] + arr[i + 2]) / 2
 
     return arr

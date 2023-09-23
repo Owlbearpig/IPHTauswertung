@@ -29,10 +29,18 @@ shgo_bounds_sub = [[(1.5, 1.9), (0.01, 0.30)],
                    [(1.5, 1.9), (0.01, 0.40)],
                    ] # original
 """
+"""
 shgo_bounds_sub = [[(1.6, 2.1), (0.01, 0.30)],
                    [(1.6, 2.1), (0.01, 0.30)],
                    [(1.6, 2.1), (0.01, 0.30)],
                    [(1.6, 2.1), (0.01, 0.30)],
+                   ]
+"""
+# with scattering enabled
+shgo_bounds_sub = [[(1.3, 1.9), (0.001, 0.10)],
+                   [(1.3, 1.9), (0.001, 0.10)],
+                   [(1.3, 1.9), (0.001, 0.10)],
+                   [(1.3, 1.9), (0.001, 0.10)],
                    ]
 
 shgo_bounds_drude = [[(0, 1e7), (0, 1)],
@@ -46,6 +54,8 @@ initial_shgo_iters = 3
 # d_sub = 0.070  # mm
 d_sub = 0.070  # mm
 angle_in = 0 * pi / 180
+tau_scat = 0.008  # mm
+
 drude_fit_range = (0.3, 2.0)
 
 plot_range = slice(25, 200)
@@ -77,12 +87,16 @@ else:
 
 # plot formatting
 
-scatter_kwargs = {"row3": {"color": "red", "s": 40, "marker": "s", "label": "Row 3"},
+scatter_kwargs = {"row1": {"color": "purple", "s": 40, "marker": "*", "label": "Row 1"},
+                  "row2": {"color": "orange", "s": 40, "marker": "+", "label": "Row 2"},
+                  "row3": {"color": "red", "s": 40, "marker": "s", "label": "Row 3"},
                   "row4": {"color": "blue", "s": 40, "marker": "v", "label": "Row 4"},
                   "row5": {"color": "green", "s": 40, "marker": "o", "label": "Row 5"},
                   }
 
-plot_kwargs = {"row3": {"color": "red", "linestyle": "solid", "label": "Row 3 "},
+plot_kwargs = {"row1": {"color": "purple", "linestyle": ":", "label": "Row 1 "},
+               "row2": {"color": "orange", "linestyle": "dotted", "label": "Row 2 "},
+               "row3": {"color": "red", "linestyle": "solid", "label": "Row 3 "},
                "row4": {"color": "blue", "linestyle": "dashed", "label": "Row 4 "},
                "row5": {"color": "green", "linestyle": "dashdot", "label": "Row 5 "},
                }

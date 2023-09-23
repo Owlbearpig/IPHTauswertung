@@ -27,7 +27,7 @@ def mpl_style_params():
     rcParams['xtick.major.width'] = 2.5
     rcParams['xtick.direction'] = 'in'
     rcParams['ytick.direction'] = 'in'
-    rcParams['axes.grid'] = True
+    # rcParams['axes.grid'] = True
     rcParams['figure.autolayout'] = False
     rcParams['savefig.format'] = 'pdf'
     rcParams.update({'font.size': 24})
@@ -40,7 +40,8 @@ def mpl_style_params():
     if 'posix' in cur_os:
         result_dir = Path(r"/home/alex/MEGA/AG/Projects/Conductivity/IPHT/Results/Modeling")
     else:
-        result_dir = Path(r"E:\Mega\AG\Projects\THz Conductivity\IPHT\Results")
+        # result_dir = Path(r"E:\Mega\AG\Projects\THz Conductivity\IPHT\Results")
+        result_dir = Path(r"E:\Mega\AG\Projects\Conductivity\IPHT\Publication\Figures")
     rcParams["savefig.directory"] = result_dir
 
     return rcParams

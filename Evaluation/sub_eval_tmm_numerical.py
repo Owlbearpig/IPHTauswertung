@@ -81,16 +81,22 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
         try:
             if d_ is not None:
                 raise FileNotFoundError
-            n_sub = np.load(sub_file)
+            n_sub = np.load(sub_file)  # TODO check if freq. ranges match
         except FileNotFoundError:
             # numerical optimization
             bounds = shgo_bounds_sub[sam_idx]
 
             def cost(p, freq_idx_):
-                n = array([1, p[0] + 1j * p[1], 1])
+                n_p = p[0] + 1j * p[1]
+                n = array([1, n_p, 1])
 
                 lam_vac = c_thz / freqs[freq_idx_]
                 t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[freq_idx_]
+
+                alph_scat = (1 / d_list[1]) * ((n_p - 1) * 4 * pi * tau_scat / lam_vac) ** 2
+                ampl_att_ = np.exp(-alph_scat * d_list[1])
+
+                t_tmm_fd *= ampl_att_
 
                 sam_tmm_fd_ = t_tmm_fd * sub_ref_fd[freq_idx_, 1]
 
