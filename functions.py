@@ -291,6 +291,16 @@ def polyfit(x, y, degree, remove_worst_outlier=False):
 
         return res
 
+    def _remove_limited_vals(x_, y_):
+        sens_limits = [4.90E+06, 4.77E+06]
+        x_filt, y_filt = [], []
+        for x_val, y_val in zip(x_, y_):
+            if not any([np.isclose(x_val, limit_val) for limit_val in sens_limits]):
+                x_filt.append(x_val)
+                y_filt.append(y_val)
+
+        return x_filt, y_filt
+
     def _remove_outlier(x_, y_):
         # len(x_) == len(y_)
 
@@ -310,8 +320,15 @@ def polyfit(x, y, degree, remove_worst_outlier=False):
     slice_ = y > 0  # 1.5e5
     # slice_ = y > 1.5e5
     x, y = x[slice_], y[slice_]
-    if True:
+
+    # print("ssssssss", len(x), len(y))
+    if False:
+        x, y = _remove_limited_vals(x, y)
+    # print("fffffffffff", len(x), len(y))
+
+    if False:
         x, y = _remove_outlier(x, y)
+
     results = _fit(x, y)
 
     return results

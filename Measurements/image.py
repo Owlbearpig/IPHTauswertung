@@ -1560,13 +1560,13 @@ if __name__ == '__main__':
     # film_image.plot_reflectance(10, -5)
     # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
     # film_image.publication_image(selected_freq_=1.200)
-    film_image.publication_image(selected_freq_=0.800)
+    # film_image.publication_image(selected_freq_=0.800)
 
     # s1 r3 and 4 are off due to sensitivity limit
-    #film_image.thz_vs_4pp(row_idx=1, segment_width=0)
-    #film_image.thz_vs_4pp(row_idx=2, segment_width=0)
-    #film_image.thz_vs_4pp(row_idx=3, segment_width=0)
-    #film_image.thz_vs_4pp(row_idx=4, segment_width=0)
+    film_image.thz_vs_4pp(row_idx=1, segment_width=0)
+    film_image.thz_vs_4pp(row_idx=2, segment_width=0)
+    film_image.thz_vs_4pp(row_idx=3, segment_width=0)
+    film_image.thz_vs_4pp(row_idx=4, segment_width=0)
 
     # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=3, segment_width=0)
