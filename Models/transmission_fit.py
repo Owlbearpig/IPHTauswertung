@@ -13,7 +13,7 @@ from functions import f_axis_idx_map, export_spectral_array
 
 mpl_style_params()
 
-sample_idx = 0
+sample_idx = 3
 # film_eval_pt = (10, -5)
 film_eval_pt = (5, -2)
 sub_eval_pt = (40, 10)  # (37.5, 18.5) # high p2p
@@ -112,12 +112,24 @@ def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
     plt.plot(np.abs(np.exp(2 * 1j * omega * d_list[2] * n_film_ / c_thz)), label="3")
     """
     lam_vac = c_thz / freq_axis_
-    alph_scat = (1 / d_list[1]) * ((n_sub_ - 1) * 4 * pi * tau_ / lam_vac) ** 2
-    ampl_att_ = np.exp(-alph_scat * d_list[1])
+    # alph_scat = (1 / d_list[1]) * ((n_sub_ - 1) * 4 * pi * tau_ / lam_vac**2)
+    alph_scat = (4 * pi * tau_ / lam_vac ** 2) * (n_sub_**2 - 1) / (n_sub_**2 + 1)
+    ampl_att_ = np.exp(-alph_scat)
 
-    t_enu = (t12 * t23 * t34 * np.exp(1j * n_film_ * omega * d_list[2] / c_thz) *
-             np.exp(1j * n_sub_ * omega * d_list[1] / c_thz))
-    t_den = 1 + r12 * r23 * np.exp(2 * 1j * omega * d_list[2] * n_film_ / c_thz)
+    r34 *= ampl_att_
+    r23 *= ampl_att_
+
+    phi_s = 1j * n_sub_ * omega * d_list[1] / c_thz
+    phi_f = 1j * n_film_ * omega * d_list[2] / c_thz
+
+    t_enu = (t12 * t23 * t34 * np.exp(phi_f) * np.exp(phi_s))
+
+    # t_den = 1 + r12 * r23 * np.exp(2 * 1j * omega * d_list[2] * n_film_ / c_thz)
+    t_den = 1 + r12 * r23 * np.exp(2 * phi_f)
+    t_den += r34 * r23 * np.exp(2 * phi_s)
+    t_den += r12 * r34 * np.exp(2 * phi_s) * np.exp(2 * phi_f)
+
+    # r_sub = 1 / (1 - r34*r23*np.exp(2*1j*n_sub_ * omega * d_list[1] / c_thz))
 
     t_sim = t_enu / t_den
 
@@ -143,10 +155,10 @@ def transmission_drude(freq_axis_, sigma0_, tau_d_, tau_, **kwargs):
 
         n = array([1, n_sub[f_idx_, 1], n_film[f_idx_], 1], dtype=complex)
 
-        alph_scat = (1 / d_list[1]) * ((n_sub[f_idx_, 1] - 1) * 4 * pi * tau_ / lam_vac[f_idx_]) ** 2
+        alph_scat = (1 / d_list[1]) * ((n_sub[f_idx_, 1] - 1) * 4 * pi * tau_ / lam_vac[f_idx_])
         ampl_att_ = np.exp(-alph_scat * d_list[1])
 
-        t_tmm_[f_idx_] = coh_tmm("s", n, d_list, angle_in, lam_vac[f_idx_]) ** 2 * ampl_att_
+        t_tmm_[f_idx_] = coh_tmm("s", n, d_list, angle_in, lam_vac[f_idx_]) * ampl_att_
 
     freq_axis_ = freq_axis_[freq_axis_idx]
     t_tmm_abs_ = np.abs(t_tmm_[freq_axis_idx])
@@ -179,19 +191,19 @@ def transmission(freq_axis_, sigma0_, tau_, inc_=False):
             n_film = (1 + 1j) * np.sqrt(sigma0_ / (4 * pi * epsilon_0 * freq_axis_ * 1e12))
             n = array([1, n_sub[f_idx_, 1], n_film[f_idx_], 1], dtype=complex)
 
-            alph_scat = (1 / d_list[1]) * ((n_sub[f_idx_, 1] - 1) * 4 * pi * tau_ / lam_vac[f_idx_]) ** 2
+            alph_scat = (1 / d_list[1]) * ((n_sub[f_idx_, 1] - 1) * 4 * pi * tau_ / lam_vac[f_idx_])
             ampl_att_ = np.exp(-alph_scat * d_list[1])
 
-            t_tmm_[f_idx_] = inc_tmm("s", n, d_list, c_list, angle_in, lam_vac[f_idx_])["T"] * ampl_att_
+            t_tmm_[f_idx_] = np.sqrt(inc_tmm("s", n, d_list, c_list, angle_in, lam_vac[f_idx_])["T"]) * ampl_att_
         else:
 
             n_film = (1 + 1j) * np.sqrt(sigma0_ / (4 * pi * epsilon_0 * freq_axis_ * 1e12))
             n = array([1, n_sub[f_idx_, 1], n_film[f_idx_], 1], dtype=complex)
 
-            alph_scat = (1 / d_list[1]) * ((n_sub[f_idx_, 1] - 1) * 4 * pi * tau_ / lam_vac[f_idx_]) ** 2
+            alph_scat = (1 / d_list[1]) * ((n_sub[f_idx_, 1] - 1) * 4 * pi * tau_ / lam_vac[f_idx_])
             ampl_att_ = np.exp(-alph_scat * d_list[1])
 
-            t_tmm_[f_idx_] = coh_tmm("s", n, d_list, angle_in, lam_vac[f_idx_]) ** 2 * ampl_att_
+            t_tmm_[f_idx_] = coh_tmm("s", n, d_list, angle_in, lam_vac[f_idx_]) * ampl_att_
 
     # """
     plt.figure("Film refractive index")

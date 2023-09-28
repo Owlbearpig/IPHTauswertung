@@ -727,7 +727,9 @@ class Image:
         grid_vals *= 1e-5  # S/m -> mS/cm
 
         grid_vals = grid_vals[w0:w1, h0:h1]
-        grid_vals = gaussian_filter(grid_vals, 0.55)
+
+        if sample_idx == 0:
+            grid_vals = gaussian_filter(grid_vals, 0.55)
 
         grid_vals[grid_vals < v_min_] = 0
         grid_vals[grid_vals > v_max_] = 0
@@ -753,8 +755,8 @@ class Image:
         ax.invert_yaxis()
 
         if sample_idx == 3:
-            ax.text(*(35, 0), s="2 mm", color="black", horizontalalignment="center", fontsize=22)
-            ax.plot([34, 36], [0.5, 0.5], c="black", lw=4, zorder=1)
+            ax.text(*(35, 0), s="2 mm", color="white", horizontalalignment="center", fontsize=22)
+            ax.plot([34, 36], [0.5, 0.5], c="white", lw=4, zorder=1)
         elif sample_idx == 0:
             ax.text(*(-3, 14), s="2 mm", color="white", horizontalalignment="center", fontsize=22)
             ax.plot([-4, -2], [14.5, 14.5], c="white", lw=4, zorder=1)
@@ -1491,7 +1493,7 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 0
+    sample_idx = 3
 
     meas_dir_sub = data_dir / "Uncoated" / f"s{sample_idx + 1}"
     sub_image = Image(data_path=meas_dir_sub)
@@ -1505,10 +1507,10 @@ if __name__ == '__main__':
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # 0.5 mm
     # meas_dir = data_dir / "s3_new_area" / "Image0"
 
-    # meas_dir = data_dir / "s4_new_area" / "Image0"
+    meas_dir = data_dir / "s4_new_area" / "Image0"
     # meas_dir = data_dir / "Edge_4pp2" / "s4"  # old image
     # meas_dir = data_dir / "Edge_4pp2_s2_redo" / "s2"  # s2
-    meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
+    # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
 
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
@@ -1559,14 +1561,14 @@ if __name__ == '__main__':
     # film_image.plot_transmittance(10, -5)
     # film_image.plot_reflectance(10, -5)
     # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    # film_image.publication_image(selected_freq_=1.200)
+    film_image.publication_image(selected_freq_=1.200)
     # film_image.publication_image(selected_freq_=0.800)
 
     # s1 r3 and 4 are off due to sensitivity limit
-    film_image.thz_vs_4pp(row_idx=1, segment_width=0)
-    film_image.thz_vs_4pp(row_idx=2, segment_width=0)
-    film_image.thz_vs_4pp(row_idx=3, segment_width=0)
-    film_image.thz_vs_4pp(row_idx=4, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=1, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=2, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=3, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=4, segment_width=0)
 
     # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=3, segment_width=0)
