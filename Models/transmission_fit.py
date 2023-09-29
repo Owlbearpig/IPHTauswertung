@@ -21,12 +21,15 @@ freq_range_ = (0.15, 3.0)
 
 # meas_dir_sub = data_dir / "Uncoated" / f"s{sample_idx+1}"
 meas_dir_sub = data_dir / "Uncoated" / f"s{4}"
-sub_image = Image(data_path=meas_dir_sub, options={"load_mpl_style": False}, sample_idx=sample_idx)
+sub_image = Image(data_path=meas_dir_sub, options={"load_mpl_style": False}, sample_idx=3)
 # sub_image.plot_image()
 
 n_sub = tmm_eval(sub_image, eval_point_=sub_eval_pt, en_plot=False, freq_range=freq_range_)
 n_sub[:, 1].imag = 0
 # n_sub[:, 1].real = 1.7
+
+#plt.figure("aaa")
+#plt.plot(n_sub[:, 1].real)
 
 if sample_idx == 3:
     meas_dir_film = data_dir / "s4_new_area" / "Image0"
@@ -53,9 +56,13 @@ try:
 except FileNotFoundError:
     t_abs, t_abs_meas = film_image.plot_transmittance(*film_eval_pt, freq_range=freq_range_)
     np.save(save_file, t_abs_meas)
-
+"""
+t_abs_meas_film = film_image.get_transmittance(*film_eval_pt, freq_range=freq_range_)
 t_abs_meas_sub = sub_image.get_transmittance(*sub_eval_pt, freq_range=freq_range_)
-
+plt.figure("add")
+plt.plot(20*np.log10(t_abs_meas_sub[:, 1]))
+plt.plot(0.10*20*np.log10(t_abs_meas_film[:, 1]))
+"""
 freq_axis = n_sub[:, 0].real
 freq_axis_idx = f_axis_idx_map(freq_axis, freq_range_)
 
@@ -64,12 +71,20 @@ omega = 2 * pi * freq_axis
 
 # init_sigma0 = 3.38  # 1 / (mOhm cm)
 # init_sigma0 = 3.12
-init_sigma0 = 3.12
-init_tau_d_ = 5
-# init_sigma0 = 160  # 1 / (mOhm cm)
+if sample_idx == 3:
+    init_sigma0 = 2.60
+    init_tau_d_ = 5
+    # init_sigma0 = 160  # 1 / (mOhm cm)
 
-init_tau = 0.0102  # mm
+    init_tau = 0.0022  # mm
+elif sample_idx == 0:
+    init_sigma0 = 33.7
+    init_tau_d_ = 5
+    # init_sigma0 = 160  # 1 / (mOhm cm)
 
+    init_tau = 0.0131  # mm
+else:
+    exit("00")
 
 def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
     sigma0_ = 1e5 * sigma0_  # 1/(mOhm cm) (1/(1e-3*1e-2)) = 1e5 -> S / m
@@ -114,10 +129,11 @@ def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
     lam_vac = c_thz / freq_axis_
     # alph_scat = (1 / d_list[1]) * ((n_sub_ - 1) * 4 * pi * tau_ / lam_vac**2)
     alph_scat = (4 * pi * tau_ / lam_vac ** 2) * (n_sub_**2 - 1) / (n_sub_**2 + 1)
-    ampl_att_ = np.exp(-alph_scat)
+    ampl_att_ = 1  # np.exp(-alph_scat)
 
     r34 *= ampl_att_
     r23 *= ampl_att_
+    # r12 *= ampl_att_
 
     phi_s = 1j * n_sub_ * omega * d_list[1] / c_thz
     phi_f = 1j * n_film_ * omega * d_list[2] / c_thz

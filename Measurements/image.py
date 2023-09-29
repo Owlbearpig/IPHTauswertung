@@ -479,8 +479,8 @@ class Image:
         sam_td = measurement.get_data_td()
         ref_td = self.get_ref(both=False, coords=(x, y))
 
-        sam_td = window(sam_td, win_len=12, shift=0, en_plot=False, slope=0.99)
-        ref_td = window(ref_td, win_len=12, shift=0, en_plot=False, slope=0.99)
+        #sam_td = window(sam_td, win_len=12, shift=0, en_plot=False, slope=0.99)
+        #ref_td = window(ref_td, win_len=12, shift=0, en_plot=False, slope=0.99)
 
         sam_td[:, 0] -= sam_td[0, 0]
         ref_td[:, 0] -= ref_td[0, 0]
