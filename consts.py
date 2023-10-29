@@ -37,10 +37,10 @@ shgo_bounds_sub = [[(1.6, 2.1), (0.01, 0.30)],
                    ]
 """
 # with scattering enabled
-shgo_bounds_sub = [[(1.5, 1.9), (0.001, 0.10)],
-                   [(1.5, 1.9), (0.001, 0.10)],
-                   [(1.5, 1.9), (0.001, 0.10)],
-                   [(1.5, 1.9), (0.001, 0.10)],
+shgo_bounds_sub = [[(1.5, 1.9), (0.001, 0.19)],
+                   [(1.5, 1.9), (0.001, 0.19)],
+                   [(1.5, 1.9), (0.001, 0.19)],
+                   [(1.5, 1.9), (0.001, 0.19)],
                    ]
 
 shgo_bounds_drude = [[(0, 1e7), (0, 1)],
@@ -54,7 +54,8 @@ initial_shgo_iters = 3
 # d_sub = 0.070  # mm
 d_sub = 0.070  # mm
 angle_in = 0 * pi / 180
-tau_scat = 0.002  # mm
+# tau_scat = 0.002  # mm original?
+tau_scat = 0.000  # mm
 
 drude_fit_range = (0.3, 2.0)
 

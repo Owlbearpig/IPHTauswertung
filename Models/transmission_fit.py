@@ -16,20 +16,20 @@ mpl_style_params()
 sample_idx = 3
 # film_eval_pt = (10, -5)
 film_eval_pt = (5, -2)
-sub_eval_pt = (40, 10)  # (37.5, 18.5) # high p2p
+sub_eval_pt = (30, 10)  # (37.5, 18.5) # high p2p
 freq_range_ = (0.15, 3.0)
 
 # meas_dir_sub = data_dir / "Uncoated" / f"s{sample_idx+1}"
-meas_dir_sub = data_dir / "Uncoated" / f"s{4}"
-sub_image = Image(data_path=meas_dir_sub, options={"load_mpl_style": False}, sample_idx=3)
+meas_dir_sub = data_dir / "Uncoated" / f"s{sample_idx+1}"
+sub_image = Image(data_path=meas_dir_sub, options={"load_mpl_style": False}, sample_idx=sample_idx)
 # sub_image.plot_image()
 
 n_sub = tmm_eval(sub_image, eval_point_=sub_eval_pt, en_plot=False, freq_range=freq_range_)
-n_sub[:, 1].imag = 0
-# n_sub[:, 1].real = 1.7
+n_sub[:, 1].imag = 0.09  # 0 with scattering on
+n_sub[:, 1].real = 1.68
 
-#plt.figure("aaa")
-#plt.plot(n_sub[:, 1].real)
+# plt.figure("aaa")
+# plt.plot(n_sub[:, 1].real)
 
 if sample_idx == 3:
     meas_dir_film = data_dir / "s4_new_area" / "Image0"
@@ -49,7 +49,7 @@ film_image.plot_point(*film_eval_pt)
 
 ref_td, ref_fd = film_image.get_ref(coords=film_eval_pt, both=True)
 
-save_file = f"t_abs_x{film_eval_pt[0]}_y{film_eval_pt[1]}_s{sample_idx+1}.npy"
+save_file = f"t_abs_x{film_eval_pt[0]}_y{film_eval_pt[1]}_s{sample_idx + 1}.npy"
 
 try:
     t_abs_meas = np.load(save_file)
@@ -76,21 +76,27 @@ if sample_idx == 3:
     init_tau_d_ = 5
     # init_sigma0 = 160  # 1 / (mOhm cm)
 
-    init_tau = 0.0022  # mm
+    # init_tau = 0.0022  # mm
+    # init_tau = 2.2  # um
+    init_tau = 4.5  # um
 elif sample_idx == 0:
     init_sigma0 = 33.7
     init_tau_d_ = 5
     # init_sigma0 = 160  # 1 / (mOhm cm)
 
-    init_tau = 0.0131  # mm
+    # init_tau = 0.0131  # mm
+    init_tau = 28  # um
 else:
     exit("00")
 
+
 def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
+    tau_ *= 1e-3  # um -> mm. 1 um = 1e-3 mm
     sigma0_ = 1e5 * sigma0_  # 1/(mOhm cm) (1/(1e-3*1e-2)) = 1e5 -> S / m
     d_list = array([np.inf, 0.070, 0.0002, np.inf], dtype=float)  # in mm
     # d_list = array([np.inf, 0.430, 0.000088, np.inf], dtype=float)  # in mm
     n_film_ = (1 + 1j) * np.sqrt(sigma0_ / (2 * epsilon_0 * omega * 1e12))
+    # n_film_ = np.ones_like(omega) * (35+1j*35)
     n_sub_ = n_sub[freq_axis_idx, 1]
     # n_sub_ = np.ones_like(freq_axis_) * 3.4175
 
@@ -128,17 +134,20 @@ def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
     """
     lam_vac = c_thz / freq_axis_
     # alph_scat = (1 / d_list[1]) * ((n_sub_ - 1) * 4 * pi * tau_ / lam_vac**2)
-    alph_scat = (4 * pi * tau_ / lam_vac ** 2) * (n_sub_**2 - 1) / (n_sub_**2 + 1)
-    ampl_att_ = 1  # np.exp(-alph_scat)
+    # alph_scat = (4 * pi * tau_ / lam_vac**2) * (n_sub_ - 1)
+    # alph_scat = (2 * pi**2 * tau_**2 / lam_vac ** (3/2)) * (n_sub_**2 - 1) / (n_sub_**2 + 1)
+    alph_scat = (1 * 4 * pi * (tau_/2) / lam_vac**2) * (n_sub_**2 - 1) / (n_sub_**2 + 2)
+    ampl_att_ = np.abs(np.exp(-alph_scat))
 
     r34 *= ampl_att_
     r23 *= ampl_att_
+    t23 *= ampl_att_
     # r12 *= ampl_att_
 
     phi_s = 1j * n_sub_ * omega * d_list[1] / c_thz
     phi_f = 1j * n_film_ * omega * d_list[2] / c_thz
 
-    t_enu = (t12 * t23 * t34 * np.exp(phi_f) * np.exp(phi_s))
+    t_enu = t12 * t23 * t34 * np.exp(phi_f) * np.exp(phi_s)
 
     # t_den = 1 + r12 * r23 * np.exp(2 * 1j * omega * d_list[2] * n_film_ / c_thz)
     t_den = 1 + r12 * r23 * np.exp(2 * phi_f)
@@ -149,7 +158,7 @@ def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
 
     t_sim = t_enu / t_den
 
-    t_sim_abs_ = np.abs(t_sim) * ampl_att_
+    t_sim_abs_ = np.abs(t_sim)
     t_sim_abs = np.array([freq_axis_, t_sim_abs_], dtype=float).T
 
     return t_sim_abs
@@ -251,8 +260,8 @@ fig, ax = plt.subplots()
 vals0 = model(freq_axis, init_sigma0, init_tau)
 line0, = ax.plot(vals0[:, 0].real, vals0[:, 1], label="TMM + Rayleigh", lw=2, color="blue")
 ax.scatter(t_abs_meas[:, 0], t_abs_meas[:, 1], label="Measured", color="red", s=2)
-ax.scatter(t_abs_meas_sub[:, 0], t_abs_meas_sub[:, 1], label="Measured sub.", color="red", s=2)
-ax.scatter(t_abs_meas_sub[:, 0], t_abs_meas[:, 1]/t_abs_meas_sub[:, 1], label="Diff", color="orange", s=2)
+# ax.scatter(t_abs_meas_sub[:, 0], t_abs_meas_sub[:, 1], label="Measured sub.", color="red", s=2)
+# ax.scatter(t_abs_meas_sub[:, 0], t_abs_meas[:, 1] / t_abs_meas_sub[:, 1], label="Diff", color="orange", s=2)
 ax.set_ylabel("Amplitude transmission")
 ax.set_xlabel("Frequency (THz)")
 ax.legend()
@@ -271,9 +280,9 @@ sigma0_slider = Slider(
 ax_tau = fig.add_axes([0.25, 0.15, 0.65, 0.03])
 tau_slider = Slider(
     ax=ax_tau,
-    label=r"$\tau$ $(mm)$",
+    label=r"$\tau$ $(um)$",
     valmin=0,
-    valmax=0.1,
+    valmax=100,
     valinit=init_tau,
     orientation="horizontal"
 )
@@ -316,7 +325,7 @@ def export_data(event):
     arr[:, :2] = t_abs_meas.real
     arr[:, 2] = vals
 
-    export_spectral_array(arr, f"amplitude_transmission_s{sample_idx+1}")
+    export_spectral_array(arr, f"amplitude_transmission_s{sample_idx + 1}")
 
 
 def reset(event):
