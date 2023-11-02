@@ -198,10 +198,12 @@ class Image:
         if self.options["one2onesub"]:
             sub_point = point
         else:
-            if self.sample_idx != 3:
-                sub_point = (10, 10)
+            if self.sample_idx == 0:
+                sub_point = (30, 10)
+            elif self.sample_idx == 3:
+                sub_point = (30, 10)
             else:
-                sub_point = (40, 10)
+                exit("p21")
 
         if "shgo_bounds" not in kwargs.keys():
             shgo_bounds = shgo_bounds_film[self.sample_idx]
@@ -250,7 +252,8 @@ class Image:
         phase_shift = np.exp(-1j * (d_sub + np.sum(d_film)) * omega / c_thz)
 
         # film_ref_interpol = self._ref_interpolation(measurement, selected_freq_=selected_freq_, ret_cart=True)
-        tau_ = 0.0102  # mm
+        # tau_ = 0.0102  # mm
+        tau_ = 0.0  # mm # no fp test
         alph_scat = (1 / d_list[1]) * ((n_sub[:, 1] - 1) * 4 * pi * tau_ * freqs / c_thz) ** 2
         ampl_att_ = np.exp(-alph_scat * d_list[1])
 
@@ -266,6 +269,7 @@ class Image:
                 lam_vac = c_thz / freq_
                 n = n_list_[f_idx_]
                 t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[f_idx_]
+                # t_tmm_fd = t_2layer([n_sub[f_idx_, 1], n_model[f_idx_]], [d_sub, d_film], freq_) * phase_shift[f_idx_]  # no fp test
                 ts_tmm_fd[f_idx_] = t_tmm_fd
                 if ret_T_and_R:
                     dict_res = coh_tmm_full("s", n, d_list, angle_in, lam_vac)
@@ -283,79 +287,12 @@ class Image:
             else:
                 return sam_tmm_td_, sam_tmm_fd_
 
-        def cost_no_unwrap(p, freq_idx_):  # works
-            n = array([1, n_sub[freq_idx_, 1], p[0] + 1j * p[1], 1])
-
-            lam_vac = c_thz / freqs[freq_idx_]
-            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac)
-
-            sam_tmm_fd = t_tmm_fd * film_ref_fd[freq_idx_, 1] * phase_shift[freq_idx_]
-            # sam_tmm_fd = t_tmm_fd * film_ref_interpol * phase_shift[f_idx]
-
-            amp_loss = (np.abs(sam_tmm_fd) - np.abs(film_fd[freq_idx_, 1])) ** 2
-            phi_loss = (np.angle(sam_tmm_fd) - np.angle(film_fd[freq_idx_, 1])) ** 2
-
-            return amp_loss + phi_loss
-
-        """
-        def cost_test(p, freq_idx_):
-            n = array([1, n_sub[freq_idx_, 1], p[0] + 1j * p[1], 1], dtype=complex)
-            # n = array([1, 1.9+1j*0.1, p[0] + 1j * p[1], 1])
-            lam_vac = c_thz / freqs[freq_idx_]
-
-            n_list = array(n)
-            num_layers = n_list.size
-
-            th_list = list_snell(n_list, th_0)
-
-            kz_list = 2 * np.pi * n_list * np.cos(th_list) / lam_vac
-
-            delta = kz_list * d_list
-
-            # t_list[i,j] and r_list[i,j] are transmission and reflection amplitudes,
-            # respectively, coming from i, going to j. Only need to calculate this when
-            # j=i+1. (2D array is overkill but helps avoid confusion.)
-            t_list = np.zeros((num_layers, num_layers), dtype=complex)
-            r_list = np.zeros((num_layers, num_layers), dtype=complex)
-            for i in range(num_layers - 1):
-                t_list[i, i + 1] = interface_t(pol, n_list[i], n_list[i + 1],
-                                               th_list[i], th_list[i + 1])
-                r_list[i, i + 1] = interface_r(pol, n_list[i], n_list[i + 1],
-                                               th_list[i], th_list[i + 1])
-
-            M_list = np.zeros((num_layers, 2, 2), dtype=complex)
-            for i in range(1, num_layers - 1):
-                M_list[i] = (1 / t_list[i, i + 1]) * np.dot(
-                    make_2x2_array(np.exp(-1j * delta[i]), 0, 0, np.exp(1j * delta[i]),
-                                   dtype=complex),
-                    make_2x2_array(1, r_list[i, i + 1], r_list[i, i + 1], 1, dtype=complex))
-            Mtilde = make_2x2_array(1, 0, 0, 1, dtype=complex)
-            for i in range(1, num_layers - 1):
-                Mtilde = np.dot(Mtilde, M_list[i])
-            Mtilde = np.dot(make_2x2_array(1, r_list[0, 1], r_list[0, 1], 1,
-                                           dtype=complex) / t_list[0, 1], Mtilde)
-
-            # Net complex transmission and reflection amplitudes
-            t_tmm_fd = phase_shift[freq_idx_] / Mtilde[0, 0]
-            
-            t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[freq_idx_]
-
-            # t_meas_fd = film_fd[freq_idx_, 1] / film_ref_fd[freq_idx_, 1]
-
-            sam_tmm_fd = t_tmm_fd * film_ref_fd[freq_idx_, 1]
-
-            amp_loss = (np.abs(sam_tmm_fd) - np.abs(film_fd[freq_idx_, 1])) ** 2
-            phi_loss = (np.angle(t_tmm_fd) - phi[freq_idx_]) ** 2
-
-            return amp_loss + phi_loss
-        """
-
         def cost(p, freq_idx_):
             n = array([1, n_sub[freq_idx_, 1], p[0] + 1j * p[1], 1], dtype=complex)
             # n = array([1, 1.9+1j*0.1, p[0] + 1j * p[1], 1])
             lam_vac = c_thz / freqs[freq_idx_]
             t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[freq_idx_] * ampl_att_[freq_idx_]
-
+            # t_tmm_fd = t_2layer([n_sub[freq_idx_, 1], p[0] + 1j * p[1]], [d_sub, d_film], freqs[freq_idx_]) * phase_shift[f_idx_]  # no fp test
             # t_meas_fd = film_fd[freq_idx_, 1] / film_ref_fd[freq_idx_, 1]
 
             sam_tmm_fd = t_tmm_fd * film_ref_fd[freq_idx_, 1]
@@ -452,6 +389,7 @@ class Image:
         t_abs_meas = np.abs(film_fd[:, 1] / film_ref_fd[:, 1])
         T, R = calc_model(n_opt, ret_T_and_R=True)
         t_abs = np.sqrt(T)
+        t_abs = np.abs(calc_model(n_opt, ret_t=True))
 
         if len(f_opt_idx) != 1:
             sigma_ret = np.array([freqs[f_opt_idx], sigma[f_opt_idx]], dtype=complex).T
@@ -479,8 +417,8 @@ class Image:
         sam_td = measurement.get_data_td()
         ref_td = self.get_ref(both=False, coords=(x, y))
 
-        sam_td = window(sam_td, win_len=12, shift=0, en_plot=False, slope=0.99)
-        ref_td = window(ref_td, win_len=12, shift=0, en_plot=False, slope=0.99)
+        # sam_td = window(sam_td, win_len=12, shift=0, en_plot=False, slope=0.99)
+        # ref_td = window(ref_td, win_len=12, shift=0, en_plot=False, slope=0.99)
 
         sam_td[:, 0] -= sam_td[0, 0]
         ref_td[:, 0] -= ref_td[0, 0]
@@ -727,7 +665,9 @@ class Image:
         grid_vals *= 1e-5  # S/m -> mS/cm
 
         grid_vals = grid_vals[w0:w1, h0:h1]
-        grid_vals = gaussian_filter(grid_vals, 0.55)
+
+        if sample_idx == 0:
+            grid_vals = gaussian_filter(grid_vals, 0.55)
 
         grid_vals[grid_vals < v_min_] = 0
         grid_vals[grid_vals > v_max_] = 0
@@ -753,8 +693,8 @@ class Image:
         ax.invert_yaxis()
 
         if sample_idx == 3:
-            ax.text(*(35, 0), s="2 mm", color="black", horizontalalignment="center", fontsize=22)
-            ax.plot([34, 36], [0.5, 0.5], c="black", lw=4, zorder=1)
+            ax.text(*(35, 0), s="2 mm", color="white", horizontalalignment="center", fontsize=22)
+            ax.plot([34, 36], [0.5, 0.5], c="white", lw=4, zorder=1)
         elif sample_idx == 0:
             ax.text(*(-3, 14), s="2 mm", color="white", horizontalalignment="center", fontsize=22)
             ax.plot([-4, -2], [14.5, 14.5], c="white", lw=4, zorder=1)
@@ -1128,7 +1068,7 @@ class Image:
     def system_stability(self, selected_freq_=0.800):
         f_idx = np.argmin(np.abs(self.freq_axis - selected_freq_))
 
-        ref_ampl_arr, ref_angle_arr, ref_pulse_pos_arr = [], [], []
+        ref_ampl_arr, ref_angle_arr = [], []
 
         t0 = self.refs[0].meas_time
         meas_times = [(ref.meas_time - t0).total_seconds() / 3600 for ref in self.refs]
@@ -1145,12 +1085,6 @@ class Image:
                 phi -= 2 * pi
             """
             ref_angle_arr.append(phi)
-            y_max_idx = np.argmax(np.abs(ref_td[:, 1]))
-            t = ref_td[:, 0].real
-            ref_pulse_pos_arr.append(t[y_max_idx])
-
-        ref_pulse_pos_arr = np.array(ref_pulse_pos_arr) - ref_pulse_pos_arr[0]
-
         ref_angle_arr = np.unwrap(ref_angle_arr)
         ref_angle_arr -= np.mean(ref_angle_arr)
         ref_ampl_arr -= np.mean(ref_ampl_arr)
@@ -1170,7 +1104,7 @@ class Image:
 
         plt.figure("System stability amplitude")
         plt.title(f"Reference amplitude at {selected_freq_} THz")
-        plt.scatter(meas_times, ref_ampl_arr, label=t0)
+        plt.plot(meas_times, ref_ampl_arr, label=t0)
         # plt.plot(sam_t1, amp_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
         # plt.plot(sam_t2, amp_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
         plt.xlabel("Measurement time (hour)")
@@ -1178,17 +1112,11 @@ class Image:
 
         plt.figure("System stability angle")
         plt.title(f"Reference phase at {selected_freq_} THz")
-        plt.scatter(meas_times, ref_angle_arr, label=t0)
+        plt.plot(meas_times, ref_angle_arr, label=t0)
         # plt.plot(sam_t1, phi_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
         # plt.plot(sam_t2, phi_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
         plt.xlabel("Measurement time (hour)")
         plt.ylabel("Phase (rad)")
-
-        plt.figure("System stability ref. pulse position")
-        plt.title(f"Reference pulse position")
-        plt.plot(meas_times, ref_pulse_pos_arr, label=t0, marker='o', linewidth=1)
-        plt.xlabel("Measurement time (hour)")
-        plt.ylabel("Position (ps)")
 
     def _ref_interpolation(self, sam_meas, selected_freq_=0.800, ret_cart=False):
         sam_meas_time = sam_meas.meas_time
@@ -1503,7 +1431,7 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 0
+    sample_idx = 3
 
     meas_dir_sub = data_dir / "Uncoated" / f"s{sample_idx + 1}"
     sub_image = Image(data_path=meas_dir_sub)
@@ -1517,11 +1445,12 @@ if __name__ == '__main__':
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # 0.5 mm
     # meas_dir = data_dir / "s3_new_area" / "Image0"
 
-    # meas_dir = data_dir / "s4_new_area" / "Image0"
+    meas_dir = data_dir / "s4_new_area" / "Image0"
     # meas_dir = data_dir / "Edge_4pp2" / "s4"  # old image
     # meas_dir = data_dir / "Edge_4pp2_s2_redo" / "s2"  # s2
     meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
     meas_dir = data_dir / "Edge" / "s4"
+    # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
 
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
@@ -1567,17 +1496,17 @@ if __name__ == '__main__':
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
     # film_image.plot_point(10.5, -10.5)
-    # film_image.plot_conductivity_spectrum(10, -5, en_all_plots=True)
+    film_image.plot_conductivity_spectrum(10, -5, en_all_plots=True)
     # film_image.plot_refractive_index(10, -5, en_all_plots=False)
     # film_image.plot_transmittance(10, -5)
     # film_image.plot_reflectance(10, -5)
     # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    # film_image.publication_image(selected_freq_=1.200)
+    # film_image.publication_image(selected_freq_=1.200) ##
     # film_image.publication_image(selected_freq_=0.800)
 
     # s1 r3 and 4 are off due to sensitivity limit
-    #film_image.thz_vs_4pp(row_idx=1, segment_width=0)
-    #film_image.thz_vs_4pp(row_idx=2, segment_width=0)
+    # film_image.thz_vs_4pp(row_idx=1, segment_width=0)
+    # film_image.thz_vs_4pp(row_idx=2, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=3, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
 

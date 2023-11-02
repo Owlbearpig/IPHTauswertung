@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from tmm_slim import coh_tmm
 from functions import do_ifft, do_fft, phase_correction, to_db, window, f_axis_idx_map
 from Evaluation.sub_eval import analytical_eval
-
+from Models.noFP import t_1layer
 
 # from mpl_settings import *
 
@@ -50,6 +50,7 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
             lam_vac = c_thz / freq_
             n = n_list_[f_idx_]
             t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[f_idx_]
+            t_tmm_fd = t_1layer(n_model[f_idx_], d_list[1], freq_) * phase_shift[f_idx_]
             ts_tmm_fd[f_idx_] = t_tmm_fd
 
         sam_tmm_fd_ = array([freqs, ts_tmm_fd * sub_ref_fd[:, 1]]).T
@@ -92,9 +93,10 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
 
                 lam_vac = c_thz / freqs[freq_idx_]
                 t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[freq_idx_]
+                t_tmm_fd = t_1layer(n_p, d_list[1], freqs[freq_idx_]) * phase_shift[freq_idx_]
 
-                alph_scat = (1 / d_list[1]) * ((n_p - 1) * 4 * pi * tau_scat / lam_vac) ** 2
-                ampl_att_ = np.exp(-alph_scat * d_list[1])
+                alph_scat = (n_p - 1) * 4 * pi * tau_scat / lam_vac
+                ampl_att_ = np.exp(-alph_scat)
 
                 t_tmm_fd *= ampl_att_
 
@@ -268,6 +270,7 @@ if __name__ == '__main__':
     # sample_idx = 0
     # image_data = data_dir / "Edge" / sample_names[sample_idx]
     image_data = data_dir / "Uncoated" / "s4"
+    image_data = data_dir / "Uncoated" / "s1"
     image = Image(image_data)
     # image.plot_point(33, 11)
     # image.plot_image(quantity="p2p", img_extent=[-10, 30, 0, 20])
@@ -291,6 +294,7 @@ if __name__ == '__main__':
 
     eval_point = (20, 10)  # used for s1-s3
     eval_point = (40, 10)  # used for s1-s3
+    eval_point = (30, 10)  # used for s1-s3
     # eval_point = (33, 11)  # s4
     # eval_point = (42, 20)
     # eval_point = (10, 10)
