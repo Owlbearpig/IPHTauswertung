@@ -1128,7 +1128,7 @@ class Image:
     def system_stability(self, selected_freq_=0.800):
         f_idx = np.argmin(np.abs(self.freq_axis - selected_freq_))
 
-        ref_ampl_arr, ref_angle_arr = [], []
+        ref_ampl_arr, ref_angle_arr, ref_pulse_pos_arr = [], [], []
 
         t0 = self.refs[0].meas_time
         meas_times = [(ref.meas_time - t0).total_seconds() / 3600 for ref in self.refs]
@@ -1145,6 +1145,12 @@ class Image:
                 phi -= 2 * pi
             """
             ref_angle_arr.append(phi)
+            y_max_idx = np.argmax(np.abs(ref_td[:, 1]))
+            t = ref_td[:, 0].real
+            ref_pulse_pos_arr.append(t[y_max_idx])
+
+        ref_pulse_pos_arr = np.array(ref_pulse_pos_arr) - ref_pulse_pos_arr[0]
+
         ref_angle_arr = np.unwrap(ref_angle_arr)
         ref_angle_arr -= np.mean(ref_angle_arr)
         ref_ampl_arr -= np.mean(ref_ampl_arr)
@@ -1164,7 +1170,7 @@ class Image:
 
         plt.figure("System stability amplitude")
         plt.title(f"Reference amplitude at {selected_freq_} THz")
-        plt.plot(meas_times, ref_ampl_arr, label=t0)
+        plt.scatter(meas_times, ref_ampl_arr, label=t0)
         # plt.plot(sam_t1, amp_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
         # plt.plot(sam_t2, amp_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
         plt.xlabel("Measurement time (hour)")
@@ -1172,11 +1178,17 @@ class Image:
 
         plt.figure("System stability angle")
         plt.title(f"Reference phase at {selected_freq_} THz")
-        plt.plot(meas_times, ref_angle_arr, label=t0)
+        plt.scatter(meas_times, ref_angle_arr, label=t0)
         # plt.plot(sam_t1, phi_interpol1, marker="o", markersize=5, label=f"Interpol (x={position1[0]}, y={position1[1]}) mm")
         # plt.plot(sam_t2, phi_interpol2, marker="o", markersize=5, label=f"Interpol (x={position2[0]}, y={position2[1]}) mm")
         plt.xlabel("Measurement time (hour)")
         plt.ylabel("Phase (rad)")
+
+        plt.figure("System stability ref. pulse position")
+        plt.title(f"Reference pulse position")
+        plt.plot(meas_times, ref_pulse_pos_arr, label=t0, marker='o', linewidth=1)
+        plt.xlabel("Measurement time (hour)")
+        plt.ylabel("Position (ps)")
 
     def _ref_interpolation(self, sam_meas, selected_freq_=0.800, ret_cart=False):
         sam_meas_time = sam_meas.meas_time
@@ -1509,6 +1521,7 @@ if __name__ == '__main__':
     # meas_dir = data_dir / "Edge_4pp2" / "s4"  # old image
     # meas_dir = data_dir / "Edge_4pp2_s2_redo" / "s2"  # s2
     meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
+    meas_dir = data_dir / "Edge" / "s4"
 
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
@@ -1563,10 +1576,10 @@ if __name__ == '__main__':
     # film_image.publication_image(selected_freq_=0.800)
 
     # s1 r3 and 4 are off due to sensitivity limit
-    film_image.thz_vs_4pp(row_idx=1, segment_width=0)
-    film_image.thz_vs_4pp(row_idx=2, segment_width=0)
-    film_image.thz_vs_4pp(row_idx=3, segment_width=0)
-    film_image.thz_vs_4pp(row_idx=4, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=1, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=2, segment_width=0)
+    # film_image.thz_vs_4pp(row_idx=3, segment_width=0)
+    # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
 
     # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=3, segment_width=0)
@@ -1578,7 +1591,7 @@ if __name__ == '__main__':
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
     # sub_image.system_stability(selected_freq_=1.200)
-    # film_image.system_stability(selected_freq_=1.200)
+    film_image.system_stability(selected_freq_=1.200)
 
     # s4 = [18, 51, 0, 20]
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p", selected_freq=1.200)

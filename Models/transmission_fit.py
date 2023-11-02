@@ -13,7 +13,7 @@ from functions import f_axis_idx_map, export_spectral_array
 
 mpl_style_params()
 
-sample_idx = 0
+sample_idx = 3
 # film_eval_pt = (10, -5)
 film_eval_pt = (5, -2)
 sub_eval_pt = (40, 10)  # (37.5, 18.5) # high p2p
@@ -26,7 +26,7 @@ sub_image = Image(data_path=meas_dir_sub, options={"load_mpl_style": False}, sam
 
 n_sub = tmm_eval(sub_image, eval_point_=sub_eval_pt, en_plot=False, freq_range=freq_range_)
 n_sub[:, 1].imag = 0
-# n_sub[:, 1].real = 1.7
+n_sub[:, 1].real = 1.7
 
 if sample_idx == 3:
     meas_dir_film = data_dir / "s4_new_area" / "Image0"
@@ -112,8 +112,8 @@ def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
     plt.plot(np.abs(np.exp(2 * 1j * omega * d_list[2] * n_film_ / c_thz)), label="3")
     """
     lam_vac = c_thz / freq_axis_
-    alph_scat = (1 / d_list[1]) * ((n_sub_ - 1) * 4 * pi * tau_ / lam_vac) ** 2
-    ampl_att_ = np.exp(-alph_scat * d_list[1])
+    alph_scat = ((n_sub_ - 1) * 4 * pi * tau_ / lam_vac**4)# ** 2
+    ampl_att_ = np.exp(-alph_scat)
 
     t_enu = (t12 * t23 * t34 * np.exp(1j * n_film_ * omega * d_list[2] / c_thz) *
              np.exp(1j * n_sub_ * omega * d_list[1] / c_thz))
@@ -143,10 +143,10 @@ def transmission_drude(freq_axis_, sigma0_, tau_d_, tau_, **kwargs):
 
         n = array([1, n_sub[f_idx_, 1], n_film[f_idx_], 1], dtype=complex)
 
-        alph_scat = (1 / d_list[1]) * ((n_sub[f_idx_, 1] - 1) * 4 * pi * tau_ / lam_vac[f_idx_]) ** 2
+        alph_scat = (1 / d_list[1]) * ((n_sub[f_idx_, 1] - 1) * 4 * pi * tau_ / lam_vac[f_idx_])# ** 2
         ampl_att_ = np.exp(-alph_scat * d_list[1])
 
-        t_tmm_[f_idx_] = coh_tmm("s", n, d_list, angle_in, lam_vac[f_idx_]) ** 2 * ampl_att_
+        t_tmm_[f_idx_] = coh_tmm("s", n, d_list, angle_in, lam_vac[f_idx_]) * ampl_att_
 
     freq_axis_ = freq_axis_[freq_axis_idx]
     t_tmm_abs_ = np.abs(t_tmm_[freq_axis_idx])
@@ -179,7 +179,7 @@ def transmission(freq_axis_, sigma0_, tau_, inc_=False):
             n_film = (1 + 1j) * np.sqrt(sigma0_ / (4 * pi * epsilon_0 * freq_axis_ * 1e12))
             n = array([1, n_sub[f_idx_, 1], n_film[f_idx_], 1], dtype=complex)
 
-            alph_scat = (1 / d_list[1]) * ((n_sub[f_idx_, 1] - 1) * 4 * pi * tau_ / lam_vac[f_idx_]) ** 2
+            alph_scat = (1 / d_list[1]) * ((n_sub[f_idx_, 1] - 1) * 4 * pi * tau_ / lam_vac[f_idx_]**4)
             ampl_att_ = np.exp(-alph_scat * d_list[1])
 
             t_tmm_[f_idx_] = inc_tmm("s", n, d_list, c_list, angle_in, lam_vac[f_idx_])["T"] * ampl_att_
@@ -188,10 +188,10 @@ def transmission(freq_axis_, sigma0_, tau_, inc_=False):
             n_film = (1 + 1j) * np.sqrt(sigma0_ / (4 * pi * epsilon_0 * freq_axis_ * 1e12))
             n = array([1, n_sub[f_idx_, 1], n_film[f_idx_], 1], dtype=complex)
 
-            alph_scat = (1 / d_list[1]) * ((n_sub[f_idx_, 1] - 1) * 4 * pi * tau_ / lam_vac[f_idx_]) ** 2
+            alph_scat = (1 / d_list[1]) * ((n_sub[f_idx_, 1] - 1) * 4 * pi * tau_ / lam_vac[f_idx_])
             ampl_att_ = np.exp(-alph_scat * d_list[1])
 
-            t_tmm_[f_idx_] = coh_tmm("s", n, d_list, angle_in, lam_vac[f_idx_]) ** 2 * ampl_att_
+            t_tmm_[f_idx_] = coh_tmm("s", n, d_list, angle_in, lam_vac[f_idx_]) * ampl_att_
 
     # """
     plt.figure("Film refractive index")
@@ -213,8 +213,8 @@ def transmission(freq_axis_, sigma0_, tau_, inc_=False):
     return t_tmm_abs
 
 
-model = transmission_simple
-# model = transmission
+# model = transmission_simple
+model = transmission
 # model = transmission_drude
 inc = False
 
@@ -223,7 +223,7 @@ fig, ax = plt.subplots()
 vals0 = model(freq_axis, init_sigma0, init_tau)
 line0, = ax.plot(vals0[:, 0].real, vals0[:, 1], label="TMM + Rayleigh", lw=2, color="blue")
 ax.scatter(t_abs_meas[:, 0], t_abs_meas[:, 1], label="Measured", color="red", s=2)
-ax.scatter(t_abs_meas_sub[:, 0], t_abs_meas_sub[:, 1], label="Measured sub.", color="red", s=2)
+ax.plot(t_abs_meas_sub[:, 0], t_abs_meas_sub[:, 1], label="Measured sub.", color="green")
 ax.scatter(t_abs_meas_sub[:, 0], t_abs_meas[:, 1]/t_abs_meas_sub[:, 1], label="Diff", color="orange", s=2)
 ax.set_ylabel("Amplitude transmission")
 ax.set_xlabel("Frequency (THz)")
