@@ -343,7 +343,8 @@ def save_fig(fig_label, save_dir=None, filename=None, **kwargs):
 
     fig = plt.figure(fig_label)
     fig.set_size_inches((16, 9), forward=False)
-    plt.savefig(save_dir / (filename.replace(" ", "_") + ".pdf"), bbox_inches='tight', dpi=300, **kwargs)
+    plt.savefig(save_dir / (filename.replace(" ", "_") + ".pdf"),
+                bbox_inches='tight', dpi=300, pad_inches=0, **kwargs)
 
 
 def to_db(data_fd):

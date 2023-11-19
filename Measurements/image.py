@@ -662,7 +662,7 @@ class Image:
         w0, w1 = int((img_extent[0] - full_extent[0]) / dx), int((img_extent[1] - full_extent[0]) / dx)
         h0, h1 = int((img_extent[2] - full_extent[2]) / dy), int((img_extent[3] - full_extent[2]) / dy)
 
-        grid_vals *= 1e-5  # S/m -> mS/cm
+        grid_vals *= 1e-5  # S/m -> kS/cm
 
         grid_vals = grid_vals[w0:w1, h0:h1]
 
@@ -692,10 +692,13 @@ class Image:
         ax.invert_xaxis()
         ax.invert_yaxis()
 
+        # add scale bar to image (2 mm)
         if sample_idx == 3:
+            pass
             ax.text(*(35, 0), s="2 mm", color="white", horizontalalignment="center", fontsize=22)
             ax.plot([34, 36], [0.5, 0.5], c="white", lw=4, zorder=1)
         elif sample_idx == 0:
+            pass
             ax.text(*(-3, 14), s="2 mm", color="white", horizontalalignment="center", fontsize=22)
             ax.plot([-4, -2], [14.5, 14.5], c="white", lw=4, zorder=1)
         else:
@@ -704,10 +707,7 @@ class Image:
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cbar = fig.colorbar(img, cax=cax)
-
-        cbar.set_label("Sheet conductivity (mS/cm)", rotation=270, labelpad=30)
-
-        save_fig(fig_label_)
+        cbar.set_label("Sheet conductivity (kS/cm)", rotation=270, labelpad=30)
 
     def plot_image(self, selected_freq=None, quantity="p2p", img_extent=None, flip_x=False):
         if quantity.lower() == "p2p":
@@ -1367,20 +1367,28 @@ class Image:
                     _ax.plot(positions, thz_cond_vals[str(dy)], label="$\sigma_{THz}$(1.2 THz)" + f" dy={dy} mm")
 
             def _plot_line_segment(segment_, segment_idx_=None):
-                plt.figure(f"{self.name} {sample_labels[self.sample_idx]}")
+                thz_img_num = f"{self.name} {sample_labels[self.sample_idx]}"
+                thz_figs = [thz_img_num, f"sample{self.sample_idx + 1}"]
+                for fig_num in thz_figs:
+                    if plt.fignum_exists(fig_num):
+                        plt.figure(fig_num)
+                        break
+
                 img_ax = plt.gca()
                 x1 = (segment_[0][0], segment_[1][0])
                 y1 = (segment_[0][1], segment_[1][1])
-                img_ax.vlines(x=x1[0], ymin=y1[0] - 1, ymax=y1[0] + 1, colors="red", lw=2, zorder=1)
-                img_ax.vlines(x=x1[1], ymin=y1[1] - 1, ymax=y1[1] + 1, colors="red", lw=2, zorder=1)
-                img_ax.plot(x1, y1, color="red", zorder=1)
+                if segment_idx_ == 0:
+                    img_ax.vlines(x=x1[0] + 0.1, ymin=y1[0] - 1, ymax=y1[0] + 1, colors="white", lw=3, zorder=1)
+                if segment_idx_ == 11:
+                    img_ax.vlines(x=x1[1], ymin=y1[1] - 1, ymax=y1[1] + 1, colors="white", lw=3, zorder=1)
+                img_ax.plot(x1, y1, color="white", zorder=1)
                 text_pos = ((x1[1] + x1[0]) / 2, y1[0] - 1)
                 if segment_idx_ is not None:
-                    img_ax.text(*text_pos, s=str(segment_idx_ + 1), color="red", horizontalalignment="center")
-                    if segment_idx_ == 0:
-                        label_pos = (x1[0] + 10, y1[0])
-                        img_ax.text(*label_pos, color="red", s=f"Row {row_idx}",
-                                    horizontalalignment="left", verticalalignment="center")
+                    # img_ax.text(*text_pos, s=str(segment_idx_ + 1), color="white", horizontalalignment="center", size=40)
+                    if segment_idx_ == 11:
+                        label_pos = (x1[0] - 4, y1[0])
+                        img_ax.text(*label_pos, color="white", s=f"{row_idx - 2}",
+                                    horizontalalignment="left", verticalalignment="center", size=42)
 
             for segment_idx, segment in enumerate(segments[str(segment_width)]):
                 _plot_line_segment(segment, segment_idx)
@@ -1448,8 +1456,8 @@ if __name__ == '__main__':
     meas_dir = data_dir / "s4_new_area" / "Image0"
     # meas_dir = data_dir / "Edge_4pp2" / "s4"  # old image
     # meas_dir = data_dir / "Edge_4pp2_s2_redo" / "s2"  # s2
-    meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
-    meas_dir = data_dir / "Edge" / "s4"
+    # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
+    # meas_dir = data_dir / "Edge" / "s4"
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
 
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
@@ -1496,19 +1504,20 @@ if __name__ == '__main__':
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
     # film_image.plot_point(10.5, -10.5)
-    film_image.plot_conductivity_spectrum(10, -5, en_all_plots=True)
+    # film_image.plot_conductivity_spectrum(10, -5, en_all_plots=True)
     # film_image.plot_refractive_index(10, -5, en_all_plots=False)
     # film_image.plot_transmittance(10, -5)
     # film_image.plot_reflectance(10, -5)
     # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    # film_image.publication_image(selected_freq_=1.200) ##
+    film_image.publication_image(selected_freq_=1.200)  ##
     # film_image.publication_image(selected_freq_=0.800)
 
     # s1 r3 and 4 are off due to sensitivity limit
     # film_image.thz_vs_4pp(row_idx=1, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=2, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=3, segment_width=0)
-    # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=3, segment_width=0)
+    #film_image.thz_vs_4pp(row_idx=4, segment_width=0)
 
     # film_image.thz_vs_4pp(row_idx=4, segment_width=0)
     # film_image.thz_vs_4pp(row_idx=3, segment_width=0)
@@ -1520,7 +1529,7 @@ if __name__ == '__main__':
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
 
     # sub_image.system_stability(selected_freq_=1.200)
-    film_image.system_stability(selected_freq_=1.200)
+    # film_image.system_stability(selected_freq_=1.200)
 
     # s4 = [18, 51, 0, 20]
     # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p", selected_freq=1.200)
@@ -1535,6 +1544,7 @@ if __name__ == '__main__':
 
     for fig_label in plt.get_figlabels():
         plt.figure(fig_label)
+        save_fig(fig_label)
         ax = plt.gca()
         handles, labels = ax.get_legend_handles_labels()
         if labels:

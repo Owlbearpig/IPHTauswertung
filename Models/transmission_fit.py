@@ -13,7 +13,7 @@ from functions import f_axis_idx_map, export_spectral_array
 
 mpl_style_params()
 
-sample_idx = 3
+sample_idx = 0  # 0, 3
 # film_eval_pt = (10, -5)
 film_eval_pt = (5, -2)
 sub_eval_pt = (30, 10)  # (37.5, 18.5) # high p2p
@@ -25,7 +25,7 @@ sub_image = Image(data_path=meas_dir_sub, options={"load_mpl_style": False}, sam
 # sub_image.plot_image()
 
 n_sub = tmm_eval(sub_image, eval_point_=sub_eval_pt, en_plot=False, freq_range=freq_range_)
-n_sub[:, 1].imag = 0.09  # 0 with scattering on
+n_sub[:, 1].imag = 0.09  # 0 with scattering on ??
 n_sub[:, 1].real = 1.68
 
 # plt.figure("aaa")
@@ -137,7 +137,7 @@ def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
     # alph_scat = (4 * pi * tau_ / lam_vac**2) * (n_sub_ - 1)
     # alph_scat = (2 * pi**2 * tau_**2 / lam_vac ** (3/2)) * (n_sub_**2 - 1) / (n_sub_**2 + 1)
     alph_scat = (1 * 4 * pi * (tau_/2) / lam_vac**2) * (n_sub_**2 - 1) / (n_sub_**2 + 2)
-    ampl_att_ = np.abs(np.exp(-alph_scat))
+    ampl_att_ = 1#np.abs(np.exp(-alph_scat))
 
     r34 *= ampl_att_
     r23 *= ampl_att_
