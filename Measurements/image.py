@@ -187,13 +187,18 @@ class Image:
 
         return x, y
 
-    def _tmm_film_fit(self, film_measurement, freq_range=None, **kwargs):
+    def tmm_film_fit(self, film_measurement, freq_range=None, **kwargs):
         point = film_measurement.position
 
         if "d_film" not in kwargs.keys():
             d_film = film_thicknesses[self.sample_idx]
         else:
             d_film = kwargs["d_film"]
+
+        if "s_param" not in kwargs.keys():
+            s_param = 0.0
+        else:
+            s_param = kwargs["s_param"] * 1E-3  # assuming it is in um -> mm
 
         if self.options["one2onesub"]:
             sub_point = point
@@ -223,8 +228,8 @@ class Image:
         film_td = film_measurement.get_data_td()
         film_ref_td = self.get_ref(both=False, coords=point)
 
-        film_td = window(film_td, win_len=12, shift=0, en_plot=en_plot_, slope=0.99)
-        film_ref_td = window(film_ref_td, win_len=12, shift=0, en_plot=en_plot_, slope=0.99)
+        film_td = window(film_td, win_len=16, shift=0, en_plot=True, slope=0.99)
+        film_ref_td = window(film_ref_td, win_len=16, shift=0, en_plot=True, slope=0.99)
 
         film_td[:, 0] -= film_td[0, 0]
         film_ref_td[:, 0] -= film_ref_td[0, 0]
@@ -248,14 +253,15 @@ class Image:
 
         n_sub = tmm_eval(self.sub_image, sub_point, freq_range=freq_range, en_plot=False)
         # n_sub[:, 1] = 1.7 + 1j*0.1
+        n_sub[:, 1].imag = 0.09
+        n_sub[:, 1].real = 1.68
 
         phase_shift = np.exp(-1j * (d_sub + np.sum(d_film)) * omega / c_thz)
 
         # film_ref_interpol = self._ref_interpolation(measurement, selected_freq_=selected_freq_, ret_cart=True)
         # tau_ = 0.0102  # mm
-        tau_ = 0.0  # mm # no fp test
-        alph_scat = (1 / d_list[1]) * ((n_sub[:, 1] - 1) * 4 * pi * tau_ * freqs / c_thz) ** 2
-        ampl_att_ = np.exp(-alph_scat * d_list[1])
+        alph_scat = ((n_sub[:, 1] - 1) * 4 * pi * s_param * freqs / c_thz) ** 2
+        ampl_att_ = np.exp(-alph_scat)
 
         def calc_model(n_model, ret_t=False, ret_T_and_R=False):
             n_list_ = array([one, n_sub[:, 1], n_model, one], dtype=complex).T
@@ -268,7 +274,7 @@ class Image:
                     continue
                 lam_vac = c_thz / freq_
                 n = n_list_[f_idx_]
-                t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[f_idx_]
+                t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[f_idx_] * ampl_att_[f_idx_]
                 # t_tmm_fd = t_2layer([n_sub[f_idx_, 1], n_model[f_idx_]], [d_sub, d_film], freq_) * phase_shift[f_idx_]  # no fp test
                 ts_tmm_fd[f_idx_] = t_tmm_fd
                 if ret_T_and_R:
@@ -312,7 +318,7 @@ class Image:
                 if self.sample_idx == 3:
                     bounds_ = [(40, 80), (0, 40)]
                 else:
-                    bounds_ = [(1, 600), (0, 600)]
+                    bounds_ = shgo_bounds.copy()
             elif self.sample_idx == 3:
                 if (0.0 < freq) * (freq < 0.5) or (res is None):
                     bounds_ = [(60, 175), (20, 120)]
@@ -497,7 +503,7 @@ class Image:
                         print(f"{round(100 * i / len(self.sams), 2)} % done, Frequency: {f_idx} / {freq_cnt}. "
                               f"(Measurement: {i}/{len(self.sams)}, {pos} mm)")
                         x_idx, y_idx = self._coords_to_idx(*pos)
-                        res = self._tmm_film_fit(measurement, freq)
+                        res = self.tmm_film_fit(measurement, freq)
 
                         grid_vals[x_idx, y_idx, f_idx] = res["sigma"]
 
@@ -525,7 +531,7 @@ class Image:
                     pos = measurement.position
                     print(f"{round(100 * i / len(self.sams), 2)} % done. "
                           f"(Measurement: {i}/{len(self.sams)}, {pos} mm)")
-                    res = self._tmm_film_fit(measurement, selected_freq)
+                    res = self.tmm_film_fit(measurement, selected_freq)
                     x_idx, y_idx = self._coords_to_idx(*pos)
                     grid_vals[x_idx, y_idx] = res["sigma"]
 
@@ -547,7 +553,7 @@ class Image:
                 print(f"{round(100 * i / len(self.sams), 2)} % done. "
                       f"(Measurement: {i}/{len(self.sams)}, {measurement.position} mm)")
                 x_idx, y_idx = self._coords_to_idx(*measurement.position)
-                res = self._tmm_film_fit(measurement, selected_freq)
+                res = self.tmm_film_fit(measurement, selected_freq)
                 grid_vals[x_idx, y_idx] = np.log10(res["loss"])
 
         elif quantity == "Reference phase":
@@ -591,7 +597,7 @@ class Image:
         thicknesses = np.arange(0.000001, 0.001000, 0.000001)
         conductivities = np.zeros_like(thicknesses, dtype=complex)
         for idx, d in enumerate(thicknesses):
-            res = self._tmm_film_fit(measurement, freq, d_film=d)
+            res = self.tmm_film_fit(measurement, freq, d_film=d)
             conductivities[idx] = res["sigma"]
 
         plt.figure("Conductivity vs thickness")
@@ -970,7 +976,7 @@ class Image:
             res_ = self._evaluated_points[key_]
         else:
             measurement = self.get_measurement(x, y)
-            res_ = self._tmm_film_fit(measurement, **kwargs)
+            res_ = self.tmm_film_fit(measurement, **kwargs)
             self._evaluated_points[key_] = res_
 
         return res_
@@ -1439,7 +1445,7 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 3
+    sample_idx = 0
 
     meas_dir_sub = data_dir / "Uncoated" / f"s{sample_idx + 1}"
     sub_image = Image(data_path=meas_dir_sub)
@@ -1453,12 +1459,12 @@ if __name__ == '__main__':
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # 0.5 mm
     # meas_dir = data_dir / "s3_new_area" / "Image0"
 
-    meas_dir = data_dir / "s4_new_area" / "Image0"
+    # meas_dir = data_dir / "s4_new_area" / "Image0"
     # meas_dir = data_dir / "Edge_4pp2" / "s4"  # old image
     # meas_dir = data_dir / "Edge_4pp2_s2_redo" / "s2"  # s2
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
     # meas_dir = data_dir / "Edge" / "s4"
-    # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
+    meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
 
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
@@ -1493,6 +1499,8 @@ if __name__ == '__main__':
     # """
     options = {"cbar_min": 5e5, "cbar_max": 1.5e7, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": True}  # s1 new phase correction
+    options = {"cbar_min": 0, "cbar_max": 0.6, "log_scale": False, "color_map": "viridis",
+               "invert_x": True, "invert_y": True}  # s1 p2p
     # """
 
     film_image = Image(meas_dir, sub_image, sample_idx, options)
@@ -1500,7 +1508,7 @@ if __name__ == '__main__':
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    # film_image.plot_image(quantity="p2p")
+    film_image.plot_image(quantity="p2p")
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
     # film_image.plot_point(10.5, -10.5)
@@ -1509,7 +1517,7 @@ if __name__ == '__main__':
     # film_image.plot_transmittance(10, -5)
     # film_image.plot_reflectance(10, -5)
     # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    film_image.publication_image(selected_freq_=1.200)  ##
+    # film_image.publication_image(selected_freq_=1.200)  ##
     # film_image.publication_image(selected_freq_=0.800)
 
     # s1 r3 and 4 are off due to sensitivity limit
