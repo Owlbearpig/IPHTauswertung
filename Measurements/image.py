@@ -1459,12 +1459,12 @@ if __name__ == '__main__':
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # 0.5 mm
     # meas_dir = data_dir / "s3_new_area" / "Image0"
 
-    # meas_dir = data_dir / "s4_new_area" / "Image0"
+    meas_dir = data_dir / "s4_new_area" / "Image0"
     # meas_dir = data_dir / "Edge_4pp2" / "s4"  # old image
     # meas_dir = data_dir / "Edge_4pp2_s2_redo" / "s2"  # s2
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
     # meas_dir = data_dir / "Edge" / "s4"
-    meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
+    # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
 
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
@@ -1501,6 +1501,8 @@ if __name__ == '__main__':
                "invert_x": True, "invert_y": True}  # s1 new phase correction
     options = {"cbar_min": 0, "cbar_max": 0.6, "log_scale": False, "color_map": "viridis",
                "invert_x": True, "invert_y": True}  # s1 p2p
+    options = {"cbar_min": 1, "cbar_max": 3, "log_scale": False, "color_map": "viridis",
+               "invert_x": True, "invert_y": True}  # s4 p2p
     # """
 
     film_image = Image(meas_dir, sub_image, sample_idx, options)

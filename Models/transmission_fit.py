@@ -13,10 +13,15 @@ from functions import f_axis_idx_map, export_spectral_array, window
 
 mpl_style_params()
 
-sample_idx = 0  # 0, 3
-# film_eval_pt = (10, -5)
-# film_eval_pt = (5, -2) # original
-film_eval_pt = (23, -5)
+sample_idx = 3  # 0, 3
+
+if sample_idx == 0:
+    # film_eval_pt = (5, -2) # original # s1 or s4??
+    film_eval_pt = (7, 7)
+    # film_eval_pt = (7.5, 8.5)  # (7.5, 8.5) works well? 6, 84 kS/cm
+else:
+    film_eval_pt = (8, -14)
+
 sub_eval_pt = (30, 10)  # (37.5, 18.5) # high p2p
 freq_range_ = (0.15, 3.0)
 
@@ -75,21 +80,19 @@ omega = 2 * pi * freq_axis
 # init_sigma0 = 3.38  # 1 / (mOhm cm)
 # init_sigma0 = 3.12
 if sample_idx == 3:
-    init_sigma0 = 2.60
     init_tau_d_ = 5
+    init_sigma0 = 1.07  # 2.60
     # init_sigma0 = 160  # 1 / (mOhm cm)
-
     # init_tau = 0.0022  # mm
     # init_tau = 2.2  # um
-    init_tau = 4.5  # um
+    init_tau = 12.4  # 4.5  # um
 elif sample_idx == 0:
-    init_sigma0 = 35
     init_tau_d_ = 5
+    init_sigma0 = 116.4  # 81.7
     # init_sigma0 = 160  # 1 / (mOhm cm)
-
     # init_tau = 0.0131  # mm
     # init_tau = 28  # um
-    init_tau = 11.5  # um
+    init_tau = 11.8  # 6.8  # um
 else:
     exit("00")
 
@@ -139,14 +142,15 @@ def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
     lam_vac = c_thz / freq_axis_
     # alph_scat = (1 / d_list[1]) * ((n_sub_ - 1) * 4 * pi * tau_ / lam_vac**2)
     # alph_scat = (4 * pi * tau_ / lam_vac**2) * (n_sub_ - 1)
+    alph_scat = ((4 * pi * tau_ / lam_vac) * (n_sub_ - 1))**2  # Ralf scattering
     # alph_scat = (2 * pi**2 * tau_**2 / lam_vac ** (3/2)) * (n_sub_**2 - 1) / (n_sub_**2 + 1)
-    alph_scat = (1 * 4 * pi * (tau_ / 2) / lam_vac ** 2) * (n_sub_ ** 2 - 1) / (n_sub_ ** 2 + 2)
+    # alph_scat = (1 * 4 * pi * tau_ / lam_vac ** 2) * (n_sub_ ** 2 - 1) / (n_sub_ ** 2 + 2)
     ampl_att_ = np.abs(np.exp(-alph_scat))
 
-    r34 *= ampl_att_
+    # r34 *= ampl_att_
     r23 *= ampl_att_
     t23 *= ampl_att_
-    # r12 *= ampl_att_
+    r12 *= ampl_att_
 
     phi_s = 1j * n_sub_ * omega * d_list[1] / c_thz
     phi_f = 1j * n_film_ * omega * d_list[2] / c_thz
@@ -162,7 +166,7 @@ def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
 
     t_sim = t_enu / t_den
 
-    t_sim_abs_ = np.abs(t_sim) # - 0.0021
+    t_sim_abs_ = np.abs(t_sim)  # - 0.0021
     t_sim_abs = np.array([freq_axis_, t_sim_abs_], dtype=float).T
 
     return t_sim_abs
@@ -293,11 +297,16 @@ ax.legend()
 
 fig.subplots_adjust(left=0.25, bottom=0.25)
 ax_sigma0 = fig.add_axes([0.25, 0.10, 0.65, 0.03])
+if sample_idx == 0:
+    val_min, val_max = 0, 140
+else:
+    val_min, val_max = 0, 10
+
 sigma0_slider = Slider(
     ax=ax_sigma0,
     label=r"$\sigma_{0}$ $(m \Omega cm)^{-1}$",
-    valmin=0,
-    valmax=100,
+    valmin=val_min,
+    valmax=val_max,
     valinit=init_sigma0,
     orientation="horizontal"
 )
@@ -307,7 +316,7 @@ tau_slider = Slider(
     ax=ax_tau,
     label=r"$\tau$ $(um)$",
     valmin=0,
-    valmax=100,
+    valmax=150,
     valinit=init_tau,
     orientation="horizontal"
 )
@@ -349,8 +358,10 @@ def export_data(event):
     arr = np.zeros((len(t_abs_meas[:, 0]), 3), dtype=float)
     arr[:, :2] = t_abs_meas.real
     arr[:, 2] = vals
-
-    export_spectral_array(arr, f"amplitude_transmission_s{sample_idx + 1}")
+    file_name = f"amplitude_transmission_s{sample_idx + 1}"
+    if np.isclose(tau_slider.val, 0):
+        file_name += "_noScat"
+    export_spectral_array(arr, file_name)
 
 
 def reset(event):
