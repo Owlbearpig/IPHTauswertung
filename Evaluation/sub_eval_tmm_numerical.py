@@ -13,7 +13,7 @@ from Models.noFP import t_1layer
 # from mpl_settings import *
 
 
-def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range=None, d_=None):
+def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range=None, d_=None, disable_saving=False):
     sam_idx = sub_image.sample_idx
     sub_td = sub_image.get_point(x=eval_point_[0], y=eval_point_[1], sub_offset=True, both=False)
     sub_ref_td = sub_image.get_ref(both=False, coords=eval_point_)
@@ -148,7 +148,8 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
                 else:
                     n_sub[f_idx] = n_sub[f_idx - 1]
 
-            np.save(sub_file, n_sub)
+            if not disable_saving:
+                np.save(sub_file, n_sub)
             diff_n = np.diff(n_sub.real[100:3500])
             diff_k = np.diff(n_sub.imag[100:3500])
             # diff_n[diff_n == 0] = 0.01
@@ -158,7 +159,7 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
 
             eq = np.sum(np.isclose(diff_n, 0)) + np.sum(np.isclose(diff_k, 0))
 
-            print(tv_n, tv_k, eq)
+            # print(tv_n, tv_k, eq)
 
         sam_tmm_shgo_td, sam_tmm_shgo_fd = calc_model(n_sub)
 
@@ -260,6 +261,9 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
 
     if d_ is not None:
         return tv_n, tv_k, eq
+
+    if len(freq_opt_idx) == 1:
+        return n_sub[freq_opt_idx]
 
     return array([freqs, n_sub], dtype=complex).T
 
