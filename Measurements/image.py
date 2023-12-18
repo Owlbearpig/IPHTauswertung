@@ -525,6 +525,7 @@ class Image:
             try:
                 grid_vals = np.load(str(grid_vals_cache_name))
             except FileNotFoundError:
+                print(str(grid_vals_cache_name))
                 grid_vals = self._empty_grid.copy()
 
                 for i, measurement in enumerate(self.sams):
@@ -648,7 +649,7 @@ class Image:
 
     def publication_image(self, selected_freq_):
         info = self.image_info
-        grid_vals = self._calc_grid_vals(quantity="conductivity", selected_freq=selected_freq_)
+        grid_vals = self._calc_grid_vals(quantity="Conductivity", selected_freq=selected_freq_)
 
         full_extent = info["extent"]
 
@@ -673,6 +674,8 @@ class Image:
         grid_vals = grid_vals[w0:w1, h0:h1]
 
         if sample_idx == 0:
+            grid_vals = gaussian_filter(grid_vals, 0.55)
+        else:
             grid_vals = gaussian_filter(grid_vals, 0.55)
 
         grid_vals[grid_vals < v_min_] = 0
@@ -713,7 +716,7 @@ class Image:
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cbar = fig.colorbar(img, cax=cax)
-        cbar.set_label("Sheet conductivity (kS/cm)", rotation=270, labelpad=30)
+        cbar.set_label("Film conductivity (kS/cm)", rotation=270, labelpad=30)
 
     def plot_image(self, selected_freq=None, quantity="p2p", img_extent=None, flip_x=False):
         if quantity.lower() == "p2p":
@@ -1445,7 +1448,7 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 0
+    sample_idx = 3
 
     meas_dir_sub = data_dir / "Uncoated" / f"s{sample_idx + 1}"
     sub_image = Image(data_path=meas_dir_sub)
@@ -1459,7 +1462,7 @@ if __name__ == '__main__':
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # 0.5 mm
     # meas_dir = data_dir / "s3_new_area" / "Image0"
 
-    meas_dir = data_dir / "s4_new_area" / "Image0"
+    meas_dir = data_dir / "s4_new_area" / "Image0"  # s4
     # meas_dir = data_dir / "Edge_4pp2" / "s4"  # old image
     # meas_dir = data_dir / "Edge_4pp2_s2_redo" / "s2"  # s2
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
@@ -1510,7 +1513,6 @@ if __name__ == '__main__':
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    film_image.plot_image(quantity="p2p")
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
     # film_image.plot_point(10.5, -10.5)
@@ -1519,7 +1521,7 @@ if __name__ == '__main__':
     # film_image.plot_transmittance(10, -5)
     # film_image.plot_reflectance(10, -5)
     # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    # film_image.publication_image(selected_freq_=1.200)  ##
+    film_image.publication_image(selected_freq_=1.200)  ##
     # film_image.publication_image(selected_freq_=0.800)
 
     # s1 r3 and 4 are off due to sensitivity limit
