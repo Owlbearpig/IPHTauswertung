@@ -479,7 +479,7 @@ class Image:
 
         return False
 
-    def _calc_grid_vals(self, quantity="p2p", selected_freq=1.200):
+    def _calc_grid_vals(self, quantity="p2p", selected_freq=1.200, ret_compl=False):
         info = self.image_info
 
         if self.options["one2onesub"]:
@@ -525,7 +525,6 @@ class Image:
             try:
                 grid_vals = np.load(str(grid_vals_cache_name))
             except FileNotFoundError:
-                print(str(grid_vals_cache_name))
                 grid_vals = self._empty_grid.copy()
 
                 for i, measurement in enumerate(self.sams):
@@ -567,9 +566,21 @@ class Image:
                 _, phi_ = self._ref_interpolation(measurement, selected_freq_=selected_freq,
                                                   ret_cart=False)
                 grid_vals[x_idx, y_idx] = phi_
+        elif quantity == "ri":
+            grid_vals = self._empty_grid.copy()
+
+            for i, measurement in enumerate(self.sams):
+                print(f"{round(100 * i / len(self.sams), 2)} % done. "
+                      f"(Measurement: {i}/{len(self.sams)}, {measurement.position} mm)")
+                x_idx, y_idx = self._coords_to_idx(*measurement.position)
+                ri_ = tmm_eval(self, measurement.position, freq_range=selected_freq, disable_saving=True)
+                grid_vals[x_idx, y_idx] = ri_
         else:
             # grid_vals = np.argmax(np.abs(self.image_data[:, :, int(17 / info["dt"]):int(20 / info["dt"])]), axis=2)
             grid_vals = np.argmax(np.abs(self.image_data[:, :, int(17 / info["dt"]):int(20 / info["dt"])]), axis=2)
+
+        if ret_compl:
+            return grid_vals
 
         return grid_vals.real
 
@@ -731,6 +742,8 @@ class Image:
             label = f" ({selected_freq[0]}-{selected_freq[1]}) THz"
         elif quantity.lower() == "loss":
             label = " function value (log10)"
+        elif quantity.lower() == "ri":
+            label = " Refractive index"
         else:
             label = " (S/m)"
 
@@ -742,7 +755,13 @@ class Image:
             w0, w1 = int((img_extent[0] - info["extent"][0]) / dx), int((img_extent[1] - info["extent"][0]) / dx)
             h0, h1 = int((img_extent[2] - info["extent"][2]) / dy), int((img_extent[3] - info["extent"][2]) / dy)
 
-        grid_vals = self._calc_grid_vals(quantity=quantity, selected_freq=selected_freq)
+        if quantity.lower() == "ri":
+            grid_vals = self._calc_grid_vals(quantity=quantity, selected_freq=selected_freq, ret_compl=True)
+            print("Average: ", np.mean(grid_vals[grid_vals.real < 2.0]))
+            print(np.std(grid_vals.real[grid_vals.real < 2.0]), np.std(grid_vals.imag[grid_vals.real < 2.0]))
+            grid_vals = grid_vals.real
+        else:
+            grid_vals = self._calc_grid_vals(quantity=quantity, selected_freq=selected_freq)
 
         grid_vals = grid_vals[w0:w1, h0:h1]
 
@@ -1452,7 +1471,7 @@ if __name__ == '__main__':
 
     meas_dir_sub = data_dir / "Uncoated" / f"s{sample_idx + 1}"
     sub_image = Image(data_path=meas_dir_sub)
-
+    sub_image.plot_image(selected_freq=1, quantity="ri")
     # meas_dir = data_dir / "s1_new_area_20_07_2023" / "Image0"
 
     # meas_dir = data_dir / "s1_new_area" / "Image0"
@@ -1462,7 +1481,7 @@ if __name__ == '__main__':
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # 0.5 mm
     # meas_dir = data_dir / "s3_new_area" / "Image0"
 
-    meas_dir = data_dir / "s4_new_area" / "Image0"  # s4
+    meas_dir = data_dir / "s4_new_area" / "Image0"
     # meas_dir = data_dir / "Edge_4pp2" / "s4"  # old image
     # meas_dir = data_dir / "Edge_4pp2_s2_redo" / "s2"  # s2
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
@@ -1513,6 +1532,7 @@ if __name__ == '__main__':
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
+    film_image.plot_image(quantity="p2p")
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
     # film_image.plot_point(10.5, -10.5)
