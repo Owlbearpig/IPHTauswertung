@@ -56,6 +56,7 @@ d_sub = 0.070  # mm
 angle_in = 0 * pi / 180
 # tau_scat = 0.002  # mm original?
 tau_scat = 0.009  # mm
+en_scattering = False
 
 drude_fit_range = (0.3, 2.0)
 

@@ -92,10 +92,10 @@ def tmm_eval(sub_image, eval_point_, en_plot=False, analytical=False, freq_range
                 n = array([1, n_p, 1])
 
                 lam_vac = c_thz / freqs[freq_idx_]
-                t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[freq_idx_]
-                # t_tmm_fd = t_1layer(n_p, d_list[1], freqs[freq_idx_]) * phase_shift[freq_idx_]
+                # t_tmm_fd = coh_tmm("s", n, d_list, angle_in, lam_vac) * phase_shift[freq_idx_]
+                t_tmm_fd = t_1layer(n_p, d_list[1], freqs[freq_idx_]) * phase_shift[freq_idx_]
 
-                alph_scat = ((n_p - 1) * 4 * pi * tau_scat / lam_vac)**2
+                alph_scat = en_scattering * ((n_p - 1) * 4 * pi * tau_scat / lam_vac)**2
                 ampl_att_ = np.abs(np.exp(-alph_scat))
 
                 t_tmm_fd *= ampl_att_

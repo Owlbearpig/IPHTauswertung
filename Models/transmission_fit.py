@@ -23,6 +23,7 @@ else:
     film_eval_pt = (8, -14)
 
 sub_eval_pt = (30, 10)  # (37.5, 18.5) # high p2p
+sub_eval_pt = (37.5, 18.5)
 freq_range_ = (0.15, 3.0)
 
 # meas_dir_sub = data_dir / "Uncoated" / f"s{sample_idx+1}"
@@ -31,9 +32,9 @@ sub_image = Image(data_path=meas_dir_sub, options={"load_mpl_style": False}, sam
 # sub_image.plot_image()
 
 n_sub = tmm_eval(sub_image, eval_point_=sub_eval_pt, en_plot=False, freq_range=freq_range_)
-n_sub[:, 1].imag = 0.09  # 0 with scattering on ??
+# n_sub[:, 1].imag = 0.09  # 0 with scattering on ??
 # n_sub[:, 1].imag = 0.45
-n_sub[:, 1].real = 1.68
+# n_sub[:, 1].real = 1.68
 
 # plt.figure("aaa")
 # plt.plot(n_sub[:, 1].real)

@@ -177,7 +177,8 @@ def window(data_td, win_len=None, win_start=None, shift=None, en_plot=False, slo
         win_start = 0
 
     pre_pad = np.zeros(win_start)
-    window_arr = signal.windows.tukey(win_len, slope)
+    # window_arr = signal.windows.tukey(win_len, slope)
+    window_arr = signal.windows.hann(win_len)
     post_pad = np.zeros(len(y) - win_len - win_start)
 
     window_arr = np.concatenate((pre_pad, window_arr, post_pad))

@@ -699,7 +699,7 @@ class Image:
 
         axes_extent = [img_extent[0] - self.image_info["dx"] / 2, img_extent[1] + self.image_info["dx"] / 2,
                        img_extent[2] - self.image_info["dy"] / 2, img_extent[3] + self.image_info["dy"] / 2]
-
+        print(np.mean(grid_vals[grid_vals != 0]), np.std(grid_vals[grid_vals != 0]))
         img = ax.imshow(grid_vals.transpose((1, 0)),
                         vmin=v_min_, vmax=v_max_,
                         origin="lower",
@@ -1467,11 +1467,11 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 3
+    sample_idx = 0
 
     meas_dir_sub = data_dir / "Uncoated" / f"s{sample_idx + 1}"
     sub_image = Image(data_path=meas_dir_sub)
-    sub_image.plot_image(selected_freq=1, quantity="ri")
+    # sub_image.plot_image(selected_freq=1, quantity="ri")
     # meas_dir = data_dir / "s1_new_area_20_07_2023" / "Image0"
 
     # meas_dir = data_dir / "s1_new_area" / "Image0"
@@ -1486,7 +1486,7 @@ if __name__ == '__main__':
     # meas_dir = data_dir / "Edge_4pp2_s2_redo" / "s2"  # s2
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
     # meas_dir = data_dir / "Edge" / "s4"
-    # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
+    meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
 
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
@@ -1532,7 +1532,7 @@ if __name__ == '__main__':
     # film_image.plot_cond_vs_d()
     # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
     # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    film_image.plot_image(quantity="p2p")
+    # film_image.plot_image(quantity="p2p")
     # film_image.plot_image(quantity="power", selected_freq=(1.200, 1.300))
     # film_image.histogram()
     # film_image.plot_point(10.5, -10.5)
