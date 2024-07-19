@@ -9,18 +9,23 @@ from mpl_settings import mpl_style_params
 from tmm_slim import coh_tmm
 from tmm import inc_tmm
 from sub_eval_tmm_numerical import tmm_eval
-from functions import f_axis_idx_map, export_spectral_array, window
+from functions import f_axis_idx_map, save_array_as_csv, window
 
 mpl_style_params()
 
-sample_idx = 3  # 0, 3
+sample_idx = 0  # 0, 3
 
 if sample_idx == 0:
     # film_eval_pt = (5, -2) # original # s1 or s4??
-    film_eval_pt = (7, 7)
+    film_eval_pt = (7, 7)  # original (7, 7)
     # film_eval_pt = (7.5, 8.5)  # (7.5, 8.5) works well? 6, 84 kS/cm
-else:
+    save_file = "signal_Ag"
+elif sample_idx == 3:
     film_eval_pt = (8, -14)
+    exp_file_name = ""
+    save_file = "signal_ITO"
+else:
+    exit()
 
 sub_eval_pt = (30, 10)  # (37.5, 18.5) # high p2p
 sub_eval_pt = (37.5, 18.5)
@@ -53,7 +58,7 @@ options = {"cbar_min": 5e5, "cbar_max": 1.5e7, "log_scale": False, "color_map": 
                "invert_x": True, "invert_y": True}  # s1
 """
 film_image = Image(meas_dir_film, sub_image, sample_idx, options)
-film_image.plot_point(*film_eval_pt)
+film_image.plot_point(*film_eval_pt, save_file=save_file, sub_noise_floor=True)
 
 ref_td, ref_fd = film_image.get_ref(coords=film_eval_pt, both=True)
 film_td, film_fd = film_image.get_point(*film_eval_pt, both=True)
@@ -143,7 +148,7 @@ def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
     lam_vac = c_thz / freq_axis_
     # alph_scat = (1 / d_list[1]) * ((n_sub_ - 1) * 4 * pi * tau_ / lam_vac**2)
     # alph_scat = (4 * pi * tau_ / lam_vac**2) * (n_sub_ - 1)
-    alph_scat = ((4 * pi * tau_ / lam_vac) * (n_sub_ - 1))**2  # Ralf scattering
+    alph_scat = ((4 * pi * tau_ / lam_vac) * (n_sub_ - 1))**2  # "Ralf scattering"
     # alph_scat = (2 * pi**2 * tau_**2 / lam_vac ** (3/2)) * (n_sub_**2 - 1) / (n_sub_**2 + 1)
     # alph_scat = (1 * 4 * pi * tau_ / lam_vac ** 2) * (n_sub_ ** 2 - 1) / (n_sub_ ** 2 + 2)
     ampl_att_ = np.abs(np.exp(-alph_scat))
@@ -362,7 +367,7 @@ def export_data(event):
     file_name = f"amplitude_transmission_s{sample_idx + 1}"
     if np.isclose(tau_slider.val, 0):
         file_name += "_noScat"
-    export_spectral_array(arr, file_name)
+    save_array_as_csv(arr, file_name)
 
 
 def reset(event):

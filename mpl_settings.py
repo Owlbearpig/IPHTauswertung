@@ -1,7 +1,8 @@
 import matplotlib as mpl
 from consts import cur_os, Path
 import matplotlib.pyplot as plt
-import matplotlib.font_manager
+import matplotlib.font_manager as fm
+from matplotlib import rc
 
 
 # print(rcParams.keys())
@@ -29,14 +30,20 @@ def mpl_style_params():
     rcParams['ytick.direction'] = 'in'
     # rcParams['axes.grid'] = True
     rcParams['figure.autolayout'] = False
-    rcParams['savefig.format'] = 'pdf'
+    rcParams['savefig.format'] = 'jpg'
     rcParams.update({'font.size': 24})
 
-    # Say, "the default sans-serif font is COMIC SANS"
-    rcParams['font.sans-serif'] = 'Liberation Sans'
-    # Then, "ALWAYS use sans-serif fonts"
-    rcParams['font.family'] = "sans-serif"
+    #plt.rcParams['font.family'] = 'serif'
+    #plt.rcParams['font.serif'] = ['DejaVu Serif']
 
+    #"""
+    plt.rcParams.update({
+        "text.usetex": True,  # Use LaTeX to write all text
+        "font.family": "serif",  # Use serif fonts
+        "font.serif": ["Computer Modern"],  # Ensure it matches LaTeX default font
+        # "text.latex.preamble": r"\\usepackage{amsmath}"  # Add more packages as needed
+    })
+    # """
     if 'posix' in cur_os:
         result_dir = Path(r"/home/alex/MEGA/AG/Projects/Conductivity/IPHT/Publication/Figures")
     else:
@@ -46,15 +53,20 @@ def mpl_style_params():
 
     return rcParams
 
-"""
-from matplotlib.pyplot import subplots, xlabel, ylabel, grid, show
-fig, ay = subplots()
 
-# Using the specialized math font elsewhere, plus a different font
-xlabel(r"The quick brown fox jumps over the lazy dog", fontsize=18)
-# No math formatting, for comparison
-ylabel(r'Italic and just Arial and not-math-font', fontsize=18)
-grid()
+if __name__ == '__main__':
+    mpl_style_params()
 
-show()
-"""
+    from matplotlib.pyplot import subplots, xlabel, ylabel, grid, show
+
+    fig, ay = subplots()
+
+    # Using the specialized math font elsewhere, plus a different font
+    xlabel(r"Film conductivity", fontsize=27)
+    # No math formatting, for comparison
+    ylabel(r'Italic and just Arial and not-math-font', fontsize=18)
+    grid()
+
+    show()
+
+    exit()

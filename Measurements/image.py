@@ -10,7 +10,7 @@ from consts import *
 import numpy as np
 import matplotlib.ticker as ticker
 from functions import do_fft, do_ifft, phase_correction, unwrap, window, polyfit, f_axis_idx_map, to_db
-from functions import remove_spikes, save_fig, export_array
+from functions import remove_spikes, save_fig, export_array, save_array_as_csv
 from Measurements.measurements import get_all_measurements, MeasurementType
 from tmm_slim import coh_tmm
 from tmm import coh_tmm as coh_tmm_full
@@ -251,7 +251,8 @@ class Image:
 
         d_list = array([inf, d_sub, d_film, inf], dtype=float)
 
-        n_sub = tmm_eval(self.sub_image, sub_point, freq_range=freq_range, en_plot=False)
+        # n_sub = tmm_eval(self.sub_image, sub_point, freq_range=freq_range, en_plot=False)
+        n_sub = tmm_eval(self.sub_image, sub_point, en_plot=False)
         # n_sub[:, 1] = 1.7 + 1j*0.1
         n_sub[:, 1].imag = 0.09
         n_sub[:, 1].real = 1.68
@@ -941,7 +942,7 @@ class Image:
 
         return phi
 
-    def plot_point(self, x, y, sam_td=None, ref_td=None, sub_noise_floor=False, label="", td_scale=1):
+    def plot_point(self, x, y, sam_td=None, ref_td=None, sub_noise_floor=False, label="", td_scale=1, save_file=""):
         if (sam_td is None) and (ref_td is None):
             sam_td = self.get_point(x, y, sub_offset=True)
             ref_td = self.get_ref(sub_offset=True, coords=(x, y))
@@ -961,10 +962,12 @@ class Image:
 
         noise_floor = np.mean(20 * np.log10(np.abs(ref_fd[ref_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
 
+        y_db_ref = to_db(ref_fd[plot_range1,], preserve_shape=True)
+        y_db_ref[:, 1] -= noise_floor
+
         if not self.plotted_ref:
             plt.figure("Spectrum")
-            plt.plot(ref_fd[plot_range1, 0], 20 * np.log10(np.abs(ref_fd[plot_range1, 1])) - noise_floor,
-                     label="Reference")
+            plt.plot(y_db_ref[:, 0], y_db_ref[:, 1], label="Reference")
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Amplitude (dB)")
 
@@ -978,19 +981,30 @@ class Image:
             plt.xlabel("Time (ps)")
             plt.ylabel("Amplitude (Arb. u.)")
 
+            if save_file:
+                save_array_as_csv(ref_td, file_name=save_file + "_ref_td", abs_=False)
+                save_array_as_csv(y_db_ref, file_name=save_file + "_ref_fd", abs_=False)
+
             self.plotted_ref = True
 
         label += f" (x={x} (mm), y={y} (mm))"
         noise_floor = np.mean(20 * np.log10(np.abs(sam_fd[sam_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
 
+        y_db_sam = to_db(sam_fd[plot_range1,], preserve_shape=True)
+        y_db_sam[:, 1] -= noise_floor
+
         plt.figure("Spectrum")
-        plt.plot(sam_fd[plot_range1, 0], 20 * np.log10(np.abs(sam_fd[plot_range1, 1])) - noise_floor, label=label)
+        plt.plot(y_db_sam[:, 0], y_db_sam[:, 1], label=label)
 
         plt.figure("Phase")
         plt.plot(sam_fd[plot_range1, 0], phi_sam[plot_range1, 1], label=label)
 
         plt.figure("Time domain")
         plt.plot(sam_td[:, 0], td_scale * sam_td[:, 1], label=label + f"\n(Amplitude x {td_scale})")
+
+        if save_file:
+            save_array_as_csv(sam_td, file_name=save_file + "_sam_td", abs_=False)
+            save_array_as_csv(y_db_sam, file_name=save_file + "_sam_fd", abs_=False)
 
     def evaluate_point(self, x, y, **kwargs):
         key_ = f"{x} {y}"
@@ -1481,12 +1495,13 @@ if __name__ == '__main__':
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # 0.5 mm
     # meas_dir = data_dir / "s3_new_area" / "Image0"
 
-    meas_dir = data_dir / "s4_new_area" / "Image0"
+    meas_dir = data_dir / "s4_new_area" / "Image0"  # s4
     # meas_dir = data_dir / "Edge_4pp2" / "s4"  # old image
     # meas_dir = data_dir / "Edge_4pp2_s2_redo" / "s2"  # s2
     # meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
     # meas_dir = data_dir / "Edge" / "s4"
-    meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
+    if sample_idx == 0:
+        meas_dir = data_dir / "s1_new_area" / "Image3_28_07_2023"  # s1
 
     # options = {"excluded_areas": [[3, 13, -10, 30], [33, 35, -10, 30]], "cbar_min": 1.0e6, "cbar_max": 6.5e6}
     options = {"excluded_areas": [[-10, 55, 12, 30],
@@ -1541,7 +1556,7 @@ if __name__ == '__main__':
     # film_image.plot_transmittance(10, -5)
     # film_image.plot_reflectance(10, -5)
     # film_image.plot_image(quantity="Conductivity", selected_freq=1.200)
-    film_image.publication_image(selected_freq_=1.200)  ##
+    film_image.publication_image(selected_freq_=1.200)  #
     # film_image.publication_image(selected_freq_=0.800)
 
     # s1 r3 and 4 are off due to sensitivity limit

@@ -15,21 +15,24 @@ def do_fft(data_td, pos_freqs_only=True):
     return array([freqs, data_fd]).T
 
 
-def export_spectral_array(arr, file_name="", freq_range=None, save_dir=None):
-    # assuming first column is frequency
+def save_array_as_csv(arr, file_name="", x_axis_range=None, save_dir=None, abs_=True):
+    # assuming first column is x-axis
 
     if save_dir is None:
         save_dir = ROOT_DIR / "Plotting" / "publication_plots"
 
     file_path = save_dir / (str(file_name) + ".csv")
 
-    if freq_range is None:
-        freq_range = (arr[0, 0].real, arr[-1, 0].real)
+    if x_axis_range is None:
+        x_axis_range = (arr[0, 0].real, arr[-1, 0].real)
 
-    f_idx_range = f_axis_idx_map(arr[:, 0].real, freq_range)
+    idx_range = f_axis_idx_map(arr[:, 0].real, x_axis_range)
     with open(file_path, "w") as file:
-        for i, pt in enumerate(arr[f_idx_range]):
-            s = ",".join([str(i), *[str(np.abs(val)) for val in pt]]) + "\n"
+        for i, pt in enumerate(arr[idx_range]):
+            if abs_:
+                s = ",".join([str(i), *[str(np.abs(val)) for val in pt]]) + "\n"
+            else:
+                s = ",".join([str(i), *[str(val.real) for val in pt]]) + "\n"
             file.write(s)
 
 
@@ -344,16 +347,21 @@ def save_fig(fig_label, save_dir=None, filename=None, **kwargs):
 
     fig = plt.figure(fig_label)
     fig.set_size_inches((16, 9), forward=False)
-    plt.savefig(save_dir / (filename.replace(" ", "_") + ".pdf"),
+    plt.savefig(save_dir / (filename.replace(" ", "_")),
                 bbox_inches='tight', dpi=300, pad_inches=0, **kwargs)
 
 
-def to_db(data_fd):
+def to_db(data_fd, preserve_shape=False):
+    if preserve_shape and data_fd.ndim == 2:
+        data_ret = data_fd.copy()
+        data_ret[:, 1] = 20 * np.log10(np.abs(data_fd[:, 1]))
+
+        return data_ret
+
     if data_fd.ndim == 2:
         return 20 * np.log10(np.abs(data_fd[:, 1]))
     else:
         return 20 * np.log10(np.abs(data_fd))
-
 
 def get_noise_floor(data_fd, noise_start=6.0):
     return np.mean(20 * np.log10(np.abs(data_fd[data_fd[:, 0] > noise_start, 1])))
