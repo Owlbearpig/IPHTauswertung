@@ -728,7 +728,8 @@ class Image:
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cbar = fig.colorbar(img, cax=cax)
-        cbar.set_label("Film conductivity (kS/cm)", rotation=270, labelpad=30)
+        cbar.ax.tick_params(labelsize=32)
+        cbar.set_label(r"Film conductivity (kS/cm)", rotation=270, labelpad=30, fontsize=32)
 
     def plot_image(self, selected_freq=None, quantity="p2p", img_extent=None, flip_x=False):
         if quantity.lower() == "p2p":
