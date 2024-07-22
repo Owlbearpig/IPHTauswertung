@@ -14,6 +14,7 @@ from functions import f_axis_idx_map, save_array_as_csv, window
 mpl_style_params()
 
 sample_idx = 0  # 0, 3
+df = 0.000200  # film thickness in um
 
 if sample_idx == 0:
     # film_eval_pt = (5, -2) # original # s1 or s4??
@@ -106,7 +107,7 @@ else:
 def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
     tau_ *= 1e-3  # um -> mm. 1 um = 1e-3 mm
     sigma0_ = 1e5 * sigma0_  # 1/(mOhm cm) (1/(1e-3*1e-2)) = 1e5 -> S / m
-    d_list = array([np.inf, 0.070, 0.0002, np.inf], dtype=float)  # in mm
+    d_list = array([np.inf, 0.070, df, np.inf], dtype=float)  # in mm
     # d_list = array([np.inf, 0.430, 0.000088, np.inf], dtype=float)  # in mm
     n_film_ = (1 + 1j) * np.sqrt(sigma0_ / (2 * epsilon_0 * omega * 1e12))
     # n_film_ = np.ones_like(omega) * (35+1j*35)
@@ -200,7 +201,7 @@ def transmission_drude(freq_axis_, sigma0_, tau_d_, tau_, **kwargs):
     sigma0_ = 1e5 * sigma0_  # 1/(mOhm cm) (1/(1e-3*1e-2)) = 1e5 -> S / m
     sigma = sigma0_ * 1j * tau_d_ / (omega + 1j * tau_d_)
 
-    d_list = array([np.inf, 0.070, 0.0002, np.inf], dtype=float)  # in mm
+    d_list = array([np.inf, 0.070, df, np.inf], dtype=float)  # in mm
 
     lam_vac = c_thz / freq_axis_
 
@@ -232,7 +233,7 @@ def transmission(sigma0_, tau_, inc_=False, *args):
     freq_axis_ = n_sub[:, 0].real
 
     sigma0_ = 1e5 * sigma0_  # 1/(mOhm cm) (1/(1e-3*1e-2)) = 1e5 -> S / m
-    d_list = array([np.inf, 0.070, 0.0002, np.inf], dtype=float)  # in mm
+    d_list = array([np.inf, 0.070, df, np.inf], dtype=float)  # in mm
     c_list = ["i", "i", "i", "i"]
 
     # n_sub[:, 1].imag = 0.11
@@ -304,9 +305,9 @@ ax.legend()
 fig.subplots_adjust(left=0.25, bottom=0.25)
 ax_sigma0 = fig.add_axes([0.25, 0.10, 0.65, 0.03])
 if sample_idx == 0:
-    val_min, val_max = 0, 140
+    val_min, val_max = 0, 180
 else:
-    val_min, val_max = 0, 10
+    val_min, val_max = 0, 15
 
 sigma0_slider = Slider(
     ax=ax_sigma0,
