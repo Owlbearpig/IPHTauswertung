@@ -62,7 +62,7 @@ drude_fit_range = (0.3, 2.0)
 
 plot_range = slice(25, 200)
 # plot_range = slice(25, 1000)
-plot_range1 = slice(0, 500)
+plot_range1 = slice(0, 1000)
 # plot_range1 = slice(1, 1000)
 plot_range_sub = slice(25, 350)
 # plot_range_sub = slice(25, 1000)

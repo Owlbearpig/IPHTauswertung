@@ -14,7 +14,8 @@ from functions import f_axis_idx_map, save_array_as_csv, window
 mpl_style_params()
 
 sample_idx = 0  # 0, 3
-df = 0.000200  # film thickness in um
+df = 200 - 50  # film thickness in nm
+df *= 1e-6
 
 if sample_idx == 0:
     # film_eval_pt = (5, -2) # original # s1 or s4??
@@ -38,9 +39,9 @@ sub_image = Image(data_path=meas_dir_sub, options={"load_mpl_style": False}, sam
 # sub_image.plot_image()
 
 n_sub = tmm_eval(sub_image, eval_point_=sub_eval_pt, en_plot=False, freq_range=freq_range_)
-# n_sub[:, 1].imag = 0.09  # 0 with scattering on ??
+n_sub[:, 1].imag = 0.09  # 0 with scattering on ??
 # n_sub[:, 1].imag = 0.45
-# n_sub[:, 1].real = 1.68
+n_sub[:, 1].real = 1.68
 
 # plt.figure("aaa")
 # plt.plot(n_sub[:, 1].real)
@@ -102,6 +103,22 @@ elif sample_idx == 0:
     init_tau = 11.8  # 6.8  # um
 else:
     exit("00")
+
+
+def transmission_uncertainty(ref_fd_, sam_fd_):
+    freqs = ref_fd[:, 0].real
+    amp_ref, amp_sam = np.abs(ref_fd_[:, 1]), np.abs(sam_fd_[:, 1])
+    del_amp_ref, del_amp_sam = np.std(amp_ref[freqs > 5.5]), np.std(amp_sam[freqs > 3.5])
+
+    del_t = np.sqrt((del_amp_sam/amp_ref) ** 2 + (amp_sam*del_amp_ref/amp_ref**2) ** 2)
+
+    plt.figure(num="Transmission uncertainty")
+    plt.plot(freqs[freq_axis_idx], del_t[freq_axis_idx])
+    plt.xlabel("Frequency (THz)")
+    plt.ylabel(r"$\Delta$t")
+
+    file_name = f"amplitude_transmission_err_s{sample_idx + 1}"
+    save_array_as_csv(np.array([freqs[freq_axis_idx], del_t[freq_axis_idx]]).T, file_name)
 
 
 def transmission_simple(freq_axis_, sigma0_, tau_, **kwargs):
@@ -284,6 +301,8 @@ def transmission(sigma0_, tau_, inc_=False, *args):
 
 
 # fit_res = transmission_tmm_fit()
+
+transmission_uncertainty(ref_fd, film_fd)
 
 model = transmission_simple
 # model = transmission
